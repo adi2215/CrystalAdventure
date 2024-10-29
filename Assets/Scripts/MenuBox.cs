@@ -1,11 +1,13 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class MenuBox : MonoBehaviour
 {
     public Data save;
     public Transform box;
+    public Levelloader level;
 
     void OnGUI()
     {
@@ -32,6 +34,6 @@ public class MenuBox : MonoBehaviour
 
     public void ButtonClose()
     {
-        Application.Quit();
+        level.LoadNextLeve((-1) * SceneManager.GetActiveScene().buildIndex);
     }
 }

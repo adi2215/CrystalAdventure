@@ -17,12 +17,12 @@ public class Levelloader : MonoBehaviour
     {
         if (tran.trans)
         {
-            LoadNextLeve();
+            LoadNextLeve(num);
             tran.trans = false;
         }
     }
 
-    public void LoadNextLeve()
+    public void LoadNextLeve(int num)
     {
         StartCoroutine(LoadLevel(SceneManager.GetActiveScene().buildIndex + num));
         tran.music = false;

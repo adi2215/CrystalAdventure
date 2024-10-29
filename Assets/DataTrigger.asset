@@ -19,4 +19,4 @@ MonoBehaviour:
   wecanPlay: 0
   RemoveBlock: 14
   RemoveBool: 0
-  FallingData: 0
+  FallingData: 1
