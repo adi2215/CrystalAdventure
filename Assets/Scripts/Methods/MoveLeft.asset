@@ -10,11 +10,11 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 514474167efa0cc49a2184865b6424aa, type: 3}
-  m_Name: MoveRight
+  m_Name: MoveLeft
   m_EditorClassIdentifier: 
   tile: {fileID: 0}
-  image: {fileID: -688969838, guid: 38ca083a5cebe244ea112c45f5aeb669, type: 3}
-  type: 0
+  image: {fileID: -1783480287, guid: 38ca083a5cebe244ea112c45f5aeb669, type: 3}
+  type: 1
   actionType: 0
   range: {x: 5, y: 4}
   stackable: 0

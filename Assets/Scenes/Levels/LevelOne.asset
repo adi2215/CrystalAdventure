@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce5e892368934e8438eb372effcc9537, type: 3}
+  m_Name: LevelOne
+  m_EditorClassIdentifier: 
+  levelName: One
+  tilemapPos: {x: -0.01000002, y: -1.88, z: 0}
+  characterPos: {x: -0.00999999, y: -1.5299999, z: 1}
+  crystalPos: {x: -0.333, y: -1.192, z: 0}
+  commands:
+  - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
+  - {fileID: 11400000, guid: c4b68b0a1ca666d4398220a5925c3e91, type: 2}
+  - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
+  - {fileID: 11400000, guid: a36b4ddd499e17b45a04f767ed85509c, type: 2}
+  maxFu: 0

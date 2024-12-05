@@ -14,6 +14,7 @@ public class CursorR : MonoBehaviour
         {
             Debug.Log(other.gameObject);
             tile = other.gameObject.GetComponent<OverlayTile>();
+            gameObject.transform.position = other.transform.position;
             Debug.Log(tile.gridLocation);
             star = true;
         }

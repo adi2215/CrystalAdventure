@@ -30,9 +30,11 @@ public class MapManager : MonoBehaviour
 
     [SerializeField] private AnimationCurve curve;
 
+    [SerializeField] private Animator anim;
+
     private float _current, _target;
     
-    bool DontOn = false;
+    bool DontOn = true;
 
     private void Awake()
     {
@@ -47,14 +49,14 @@ public class MapManager : MonoBehaviour
         }
     }
     
-    void Start()
+    public void TileAppears()
     {
         var TileMap = gameObject.GetComponentInChildren<Tilemap>();
         map = new Dictionary<Vector2Int, OverlayTile>();
         BoundsInt bounds = TileMap.cellBounds;
         Debug.Log(bounds);
 
-        for (int z = bounds.max.z; z > bounds.min.z; z--)
+        for (int z = bounds.max.z; z >= bounds.min.z; z--)
         {
             for (int y = bounds.min.y; y < bounds.max.y; y++)
             {
@@ -63,8 +65,11 @@ public class MapManager : MonoBehaviour
                     var TileLocation = new Vector3Int(x, y, z); 
                     var tileKey = new Vector2Int(x, y);
 
+                    Debug.Log($"Anchor of Tilemap: {TileMap.HasTile(TileLocation)}, {TileLocation}");
+
                     if (TileMap.HasTile(TileLocation) && !map.ContainsKey(tileKey))
                     {
+                        Debug.Log("feg");
                         // ADD array
                         Tiles.Add(TileLocation);
                         var ovarlayTile = Instantiate(overlayTilePrefab, overlayContainer.transform);
@@ -84,15 +89,17 @@ public class MapManager : MonoBehaviour
                 }
             }
         }
+
+        MoveBlock = false;
     }
 
     void Update()
     {
-        if (!DontOn)
+        /*if (!DontOn)
         {
             StartMove();
             //Debug.Log("LOL");
-        } 
+        } */
 
         if (MoveBlock)
             return;
@@ -105,7 +112,7 @@ public class MapManager : MonoBehaviour
             Tile currentTile = tilemap.GetTile<Tile>(Tiles[i]);
             Vector3 cellPosition = tilemap.GetCellCenterWorld(Tiles[i]);
             Obj[i].GetComponent<SpriteRenderer>().sprite = currentTile.sprite;
-            if (currentTile.sprite.name == "CloudsTileMap_0")
+            if (currentTile.sprite.name == "CloudsTileMap_0" || currentTile.sprite.name == "EmptyTile")
             {
                 Obj[i].GetComponent<SpriteRenderer>().color = new Color(0, 0, 0, 0);
             }

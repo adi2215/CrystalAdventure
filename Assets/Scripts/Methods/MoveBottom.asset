@@ -9,14 +9,12 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2dcff1fbc1a424340b50e0adf752499e, type: 3}
-  m_Name: DataTrigger
+  m_Script: {fileID: 11500000, guid: 514474167efa0cc49a2184865b6424aa, type: 3}
+  m_Name: MoveBottom
   m_EditorClassIdentifier: 
-  trans: 1
-  menuclose: 0
-  music: 0
-  burrons: 0
-  wecanPlay: 0
-  RemoveBlock: 14
-  RemoveBool: 0
-  FallingData: 1
+  tile: {fileID: 0}
+  image: {fileID: -1421409474, guid: 38ca083a5cebe244ea112c45f5aeb669, type: 3}
+  type: 3
+  actionType: 0
+  range: {x: 5, y: 4}
+  stackable: 0

@@ -23,7 +23,7 @@ public class Crystal : MonoBehaviour
     {
         if (Falling && transform.position != targetPosition.transform.position)
         {
-            transform.position = Vector3.Lerp(transform.position, targetPosition.transform.position, Time.deltaTime * speedFalling);
+            transform.position = Vector3.Lerp(transform.position, targetPosition.transform.position + new Vector3(0, 0.12f, 0), Time.deltaTime * speedFalling);
             speedFalling += 0.02f;
         }
 
@@ -35,7 +35,7 @@ public class Crystal : MonoBehaviour
         if (!tran.FallingData)
         {
             GetComponent<PolygonCollider2D>().enabled = true;
-            GetComponentInParent<Animator>().enabled = true;
+            //GetComponentInParent<Animator>().enabled = true;
         }
     }
 

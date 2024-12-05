@@ -9918,6 +9918,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  anim: {fileID: 1397128972}
 --- !u!1001 &356005606107334992
 PrefabInstance:
   m_ObjectHideFlags: 0

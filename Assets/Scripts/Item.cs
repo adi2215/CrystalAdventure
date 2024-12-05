@@ -20,6 +20,7 @@ public enum ItemType {
     Forwart,
     Left,
     Right,
+    Bottom,
     Item
 }
 

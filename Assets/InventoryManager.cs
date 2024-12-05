@@ -5,14 +5,9 @@ using UnityEngine;
 public class InventoryManager : MonoBehaviour
 {
 
-    public InventorySlot[] inventorySlots;
+    [SerializeField] private List<InventorySlot> inventorySlots = new ();
 
     public GameObject inventoryItemPrefab;
-
-    int selectedSlot = -1;
-    int numberSlot = 0;
-
-    int maxNumberSlot = 4;
 
    /* private void Start()
     {
@@ -65,9 +60,18 @@ public class InventoryManager : MonoBehaviour
         selectedSlot = newValue;
     }*/
 
+    void Start() 
+    { 
+        foreach (var slot in GetComponentsInChildren<InventorySlot>())
+        {
+            inventorySlots.Add(slot);
+        }
+    }
+
     public void AddItem(Item item)
     {
-        for (int i = 0; i < inventorySlots.Length; i++)
+        Debug.Log(inventorySlots.Count);
+        for (int i = 0; i < inventorySlots.Count; i++)
         {
             InventorySlot slot = inventorySlots[i];
             InventoryItems itemInSlot = slot.GetComponentInChildren<InventoryItems>();
@@ -88,7 +92,7 @@ public class InventoryManager : MonoBehaviour
 
     public void GetDestroyItem()
     {
-        for (int i = 0; i < inventorySlots.Length; i++)
+        for (int i = 0; i < inventorySlots.Count; i++)
         {
             InventorySlot slot = inventorySlots[i];
             InventoryItems itemInSlot = slot.GetComponentInChildren<InventoryItems>();

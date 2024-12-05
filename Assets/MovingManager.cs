@@ -48,7 +48,7 @@ public class MovingManager : MonoBehaviour
         }
     }
 
-    public void Forward()
+    public void MoveCharacter(String move)
     {
         if (ButtonID.Count >= but && !ButtonID.Contains(null))
             return;
@@ -56,51 +56,15 @@ public class MovingManager : MonoBehaviour
         if (ButtonID.Contains(null))
         {
             Debug.Log("gg");
-            ButtonID[ButtonID.IndexOf(null)] = "Forward";
-            ButtonIDCheck[ButtonIDCheck.IndexOf(null)] = "Forward";
+            ButtonID[ButtonID.IndexOf(null)] = move;
+            ButtonIDCheck[ButtonIDCheck.IndexOf(null)] = move;
         }
         else
         {
-            ButtonID.Add("Forward");
-            ButtonIDCheck.Add("Forward");
+            ButtonID.Add(move);
+            ButtonIDCheck.Add(move);
         }
         Debug.Log(ButtonID.BinarySearch(null));
-    }
-
-    public void Left()
-    {
-        if (ButtonID.Count >= but && !ButtonID.Contains(null))
-            return;
-
-        if (ButtonID.Contains(null))
-        {
-            Debug.Log("gg");
-            ButtonID[ButtonID.IndexOf(null)] = "Left";
-            ButtonIDCheck[ButtonIDCheck.IndexOf(null)] = "Left";
-        }
-        else
-        {
-            ButtonID.Add("Left");
-            ButtonIDCheck.Add("Left");
-        }
-    }
-
-    public void Right()
-    {
-        if (ButtonID.Count >= but && !ButtonID.Contains(null))
-            return;
-
-        if (ButtonID.Contains(null))
-        {
-            Debug.Log("gg");
-            ButtonID[ButtonID.IndexOf(null)] = "Right";
-            ButtonIDCheck[ButtonIDCheck.IndexOf(null)] = "Right";
-        }
-        else
-        {
-            ButtonID.Add("Right");
-            ButtonIDCheck.Add("Right");
-        }
     }
 
     public void RightFu()
@@ -129,29 +93,21 @@ public class MovingManager : MonoBehaviour
 
     public void RightWh()
     {   
-
-
         WhileSlot.Add("Right");
     }
 
     public void LeftWh()
     {   
-
-
         WhileSlot.Add("Left");
     }
 
     public void ForwardWh()
     {   
-
-
         WhileSlot.Add("Forward");
     }
 
     public void FunctionWh()
     {
-
-
         WhileSlot.Add("Function");
     }
 

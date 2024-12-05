@@ -59,11 +59,9 @@ public class CharacterCode : MonoBehaviour
 
     void LateUpdate()
     {
-        if (List.play && !star1)
+        if (!star1 && List.play)
         {
-            Debug.Log(tile.tile);
             path = pathFinder.FindWays(tile.tile, List);
-            Debug.Log(path.Count);
             star1 = true;
         }
 
@@ -75,7 +73,7 @@ public class CharacterCode : MonoBehaviour
 
         else if (path.Count > 0 && List.play)
         {
-            //Debug.Log(List.ButtonIDCheck.Count);
+            Debug.Log(List.ButtonIDCheck.Count);
             if (List.ButtonIDCheck[0] != "Attack")
             {
                 MoveAlong();

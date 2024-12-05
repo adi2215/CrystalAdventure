@@ -12,13 +12,13 @@ EditorBuildSettings:
     path: Assets/Scenes/LevelMove/Menu.unity
     guid: 3a21c8a12346e6f4bbb140440003a140
   - enabled: 1
-    path: Assets/Scenes/LevelMove/ThirdLevel.unity
+    path: Assets/Scenes/LevelMove/FirstLevel.unity
     guid: bf4c76b2de44e364cbe2881ec740f125
   - enabled: 1
     path: Assets/Scenes/LevelMove/SecondLevel.unity
     guid: 9e6d9f830014db94a8a49f2db9c60b04
   - enabled: 1
-    path: Assets/Scenes/LevelMove/SecondLevel 1.unity
+    path: Assets/Scenes/LevelMove/ThirdLevel.unity
     guid: 7849855675fa7ba4cae9470f68b4d371
   - enabled: 1
     path: Assets/Scenes/LevelFunction/SceneFu.unity
