@@ -15,27 +15,29 @@ public class Crystal : MonoBehaviour
 
     public GameObject targetPosition;
 
+    private Vector3 target;
+
     public float speedFalling;
 
-    private bool Falling = true;
+    void Start() => target = targetPosition.transform.position + new Vector3(0, 0.12f, 0);
 
     void Update()
     {
-        if (Falling && transform.position != targetPosition.transform.position)
+        if (tran.FallingCrystal && transform.position != target && !tran.FallingMap)
         {
-            transform.position = Vector3.Lerp(transform.position, targetPosition.transform.position + new Vector3(0, 0.12f, 0), Time.deltaTime * speedFalling);
+            transform.position = Vector3.Lerp(transform.position, target, Time.deltaTime * speedFalling);
             speedFalling += 0.02f;
         }
 
-        if (transform.position == targetPosition.transform.position)
+        if (transform.position == target)
         {
-            Falling = false;
+            tran.FallingCrystal = false;
         }
 
-        if (!tran.FallingData)
+        if (!tran.FallingCrystal && !tran.FallingCube && !tran.FallingMap)
         {
             GetComponent<PolygonCollider2D>().enabled = true;
-            //GetComponentInParent<Animator>().enabled = true;
+            GetComponentInParent<Animator>().enabled = true;
         }
     }
 

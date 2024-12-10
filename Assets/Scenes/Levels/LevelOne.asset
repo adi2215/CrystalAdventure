@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: LevelOne
   m_EditorClassIdentifier: 
   levelName: One
-  tilemapPos: {x: -0.01000002, y: -1.88, z: 0}
+  tilemapPos: {x: -0.00999999, y: -1.88, z: 0}
   characterPos: {x: -0.00999999, y: -1.5299999, z: 1}
-  crystalPos: {x: -0.333, y: -1.192, z: 0}
+  crystalPos: {x: -0.323, y: -1.1969999, z: 0}
   commands:
   - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
   - {fileID: 11400000, guid: c4b68b0a1ca666d4398220a5925c3e91, type: 2}

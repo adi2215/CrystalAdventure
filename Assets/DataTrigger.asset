@@ -12,11 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2dcff1fbc1a424340b50e0adf752499e, type: 3}
   m_Name: DataTrigger
   m_EditorClassIdentifier: 
-  trans: 1
+  trans: 0
   menuclose: 0
   music: 0
   burrons: 0
   wecanPlay: 0
   RemoveBlock: 14
   RemoveBool: 0
-  FallingData: 1
+  FallingCrystal: 1
+  FallingCube: 1
+  FallingMap: 1

@@ -36,15 +36,13 @@ public class CharacterCode : MonoBehaviour
     private void Start()
     {
         pathFinder = new WayTiles();
-        Falling = true;
-        tran.FallingData = Falling;
         rb = GetComponent<Rigidbody2D>();
         order = GetComponent<SpriteRenderer>();
     }
     /*0.005 -0.67 1*/
     void Update()
     {
-        if (Falling && transform.position != targetPosition.transform.position)
+        if (tran.FallingCube && transform.position != targetPosition.transform.position && !tran.FallingMap)
         {
             transform.position = Vector3.Lerp(transform.position, targetPosition.transform.position, Time.deltaTime * speedFalling);
             speedFalling += 0.02f;
@@ -52,8 +50,7 @@ public class CharacterCode : MonoBehaviour
 
         if (transform.position == targetPosition.transform.position)
         {
-            Falling = false;
-            tran.FallingData = Falling;
+            tran.FallingCube = false;
         }
     }
 

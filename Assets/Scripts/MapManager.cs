@@ -33,8 +33,9 @@ public class MapManager : MonoBehaviour
     [SerializeField] private Animator anim;
 
     private float _current, _target;
+
+    public Data data;
     
-    bool DontOn = true;
 
     private void Awake()
     {
@@ -47,6 +48,13 @@ public class MapManager : MonoBehaviour
         {
             _instance = this;
         }
+    }
+
+    private void Start()
+    {
+        data.FallingCrystal = true;
+        data.FallingCube = true;
+        data.FallingMap = true;
     }
     
     public void TileAppears()
@@ -121,13 +129,14 @@ public class MapManager : MonoBehaviour
         }
         Debug.Log("NUB");
 
-        MoveBlock = true;
+        StartCoroutine(StartMove());
     }
 
-    void StartMove()
+    private IEnumerator StartMove()
     {
-        MoveBlock = false;
-        DontOn = true;
+        MoveBlock = true;
+        yield return new WaitForSeconds(1f);
+        data.FallingMap = false;
     }
 }
 
