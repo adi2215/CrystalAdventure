@@ -7,7 +7,9 @@ public class InventoryManager : MonoBehaviour
 
     [SerializeField] private List<InventorySlot> inventorySlots = new ();
 
-    public GameObject inventoryItemPrefab;
+    [SerializeField] private GameObject inventoryItemPrefab;
+
+    [SerializeField] private MovingManager addElement;
 
    /* private void Start()
     {
@@ -88,6 +90,8 @@ public class InventoryManager : MonoBehaviour
         GameObject newItemGo = Instantiate(inventoryItemPrefab, slot.transform);
         InventoryItems inventoryItem = newItemGo.GetComponent<InventoryItems>();
         inventoryItem.InitialItem(item);
+        addElement.MoveCharacter(item.type.ToString());
+        Debug.Log(item.type.ToString());
     }
 
     public void GetDestroyItem()

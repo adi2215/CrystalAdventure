@@ -5149,6 +5149,7 @@ MonoBehaviour:
     m_PostInfinity: 2
     m_RotationOrder: 4
   anim: {fileID: 1397128972}
+  data: {fileID: 0}
 --- !u!114 &642024496068959728
 MonoBehaviour:
   m_ObjectHideFlags: 0

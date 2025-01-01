@@ -33,13 +33,17 @@ public class CharacterCode : MonoBehaviour
     
     public float speedFalling;
 
+    private bool isPaused = false;
+
+    private float pauseTimer = 0f;
+
     private void Start()
     {
         pathFinder = new WayTiles();
         rb = GetComponent<Rigidbody2D>();
         order = GetComponent<SpriteRenderer>();
     }
-    /*0.005 -0.67 1*/
+
     void Update()
     {
         if (tran.FallingCube && transform.position != targetPosition.transform.position && !tran.FallingMap)
@@ -102,6 +106,16 @@ public class CharacterCode : MonoBehaviour
 
     private void MoveAlong()
     {  
+        if (isPaused)
+        {
+            pauseTimer -= Time.deltaTime;
+            if (pauseTimer <= 0f)
+            {
+                isPaused = false;
+            }
+            return;
+        }
+
         var step = speed * Time.deltaTime;
         var zIndex = path[0].transform.position.z;
         transform.position = Vector2.MoveTowards(transform.position, path[0].transform.position, step);
@@ -113,6 +127,8 @@ public class CharacterCode : MonoBehaviour
             PositionCharacterOnLine(path[0]);
             path.RemoveAt(0);
             List.ButtonIDCheck.RemoveAt(0);
+            isPaused = true;
+            pauseTimer = 0.1f;
 
             if (currentTile.typeSprite == "CloudsTileMap_0")
             {

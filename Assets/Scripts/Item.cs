@@ -17,11 +17,12 @@ public class Item : ScriptableObject
 }
 
 public enum ItemType {
-    Forwart,
+    Forward,
     Left,
     Right,
     Bottom,
-    Item
+    Function,
+    While
 }
 
 public enum ActionType {
