@@ -9,22 +9,20 @@ public class Levelloader : MonoBehaviour
 
     public float transitionTime = 1f;
 
-    public int num;
-
     public Data tran;
 
     void Update()
     {
         if (tran.trans)
         {
-            LoadNextLeve(num);
+            LoadNextLeve();
             tran.trans = false;
         }
     }
 
-    public void LoadNextLeve(int num)
+    public void LoadNextLeve()
     {
-        StartCoroutine(LoadLevel(SceneManager.GetActiveScene().buildIndex + num));
+        StartCoroutine(LoadLevel(SceneManager.GetActiveScene().buildIndex));
         tran.music = false;
     }
 
@@ -34,6 +32,8 @@ public class Levelloader : MonoBehaviour
         {
             tran.menuclose = false;
         }
+
+        tran.NextLevel++;
 
         transition.SetTrigger("Start");
 

@@ -12,9 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 514474167efa0cc49a2184865b6424aa, type: 3}
   m_Name: While
   m_EditorClassIdentifier: 
-  tile: {fileID: 0}
-  image: {fileID: 882958316, guid: 937a7fd6daaaa264aaf3ea412d60d56d, type: 3}
-  type: 5
-  actionType: 0
-  range: {x: 5, y: 4}
-  stackable: 0
+  image: {fileID: 21300000, guid: 078929c9163db214e8315cc2025cb275, type: 3}
+  type: 6
+  iteration: 1

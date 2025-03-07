@@ -34,13 +34,13 @@ public class ComandScript : MonoBehaviour
     
     delegate char OnValidateInput(string text, int charIndex, char addedChar);
 
-    public void ShowText()
+    /*public void ShowText()
     {
         textComand.text = "> " + Texting(inputField.text.ToLower(), color);
 
         inputField.text = "";
 
-    }
+    }*/
 
     /*public void TypeText(string textComand)
     {
@@ -49,7 +49,7 @@ public class ComandScript : MonoBehaviour
         };
     }*/
 
-    private string Texting(string text, Color color)
+    /*private string Texting(string text, Color color)
     {
         string [] tokens = text.Split(' ');
         List<string> coor = new List<string>(text.Split(' '));
@@ -118,7 +118,7 @@ public class ComandScript : MonoBehaviour
         }
 
         return output;
-    }
+    }*/
 
 
     /*private char ValidateChar(string validateChar, char addedChar)

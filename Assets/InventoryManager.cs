@@ -70,7 +70,7 @@ public class InventoryManager : MonoBehaviour
         }
     }
 
-    public void AddItem(Item item)
+    public void AddItem(Item item, SlotType type)
     {
         Debug.Log(inventorySlots.Count);
         for (int i = 0; i < inventorySlots.Count; i++)
@@ -79,18 +79,18 @@ public class InventoryManager : MonoBehaviour
             InventoryItems itemInSlot = slot.GetComponentInChildren<InventoryItems>();
             if (itemInSlot == null)
             {
-                SpawnItem(item, slot);
+                SpawnItem(item, slot, type);
                 return;
             }
         }
     }
 
-    public void SpawnItem(Item item, InventorySlot slot)
+    public void SpawnItem(Item item, InventorySlot slot, SlotType type)
     {
         GameObject newItemGo = Instantiate(inventoryItemPrefab, slot.transform);
         InventoryItems inventoryItem = newItemGo.GetComponent<InventoryItems>();
         inventoryItem.InitialItem(item);
-        addElement.MoveCharacter(item.type.ToString());
+        addElement.MoveCharacter(item, type);
         Debug.Log(item.type.ToString());
     }
 

@@ -13,18 +13,18 @@ public class WayTiles
         //List<OverlayTile> closedList = new List<OverlayTile>();
 
         openList.Add(start);
-        int lists = list.ButtonID.Count;
+        int lists = list.Commands[SlotType.Main].Count;
 
         for (int i = 0; i < lists; i++)
         {
             OverlayTile currentOverlayTile = openList.First();
-            string currentword = list.ButtonID[0];
+            string currentword = list.Commands[SlotType.Main][0].type.ToString();
 
             openList.Remove(currentOverlayTile);
-            list.ButtonID.RemoveAt(0);
+            list.Commands[SlotType.Main].RemoveAt(0);
             //closedList.Add(currentOverlayTile);
-
-            if(list.ButtonID.Count == 0)
+    
+            if(list.Commands[SlotType.Main].Count == 0)
             {
                 return GetFinishedList(currentOverlayTile, currentword);
             }

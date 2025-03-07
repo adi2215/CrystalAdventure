@@ -13,12 +13,25 @@ MonoBehaviour:
   m_Name: LevelOne
   m_EditorClassIdentifier: 
   levelName: One
-  tilemapPos: {x: -0.00999999, y: -1.88, z: 0}
-  characterPos: {x: -0.00999999, y: -1.5299999, z: 1}
-  crystalPos: {x: -0.323, y: -1.1969999, z: 0}
-  commands:
-  - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
-  - {fileID: 11400000, guid: c4b68b0a1ca666d4398220a5925c3e91, type: 2}
-  - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
-  - {fileID: 11400000, guid: a36b4ddd499e17b45a04f767ed85509c, type: 2}
-  maxFu: 0
+  tilemapPos: {x: -0.00999999, y: -1.874, z: 0}
+  characterPos: {x: -0.00999999, y: -1.5139999, z: 1}
+  crystalPos: {x: -0.32999998, y: -1.1939999, z: 1}
+  panels:
+  - panelName: Main
+    commands:
+    - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
+    - {fileID: 11400000, guid: c4b68b0a1ca666d4398220a5925c3e91, type: 2}
+    - {fileID: 11400000, guid: a36b4ddd499e17b45a04f767ed85509c, type: 2}
+    - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
+    - {fileID: 11400000, guid: 7118d544b4f2a61419da87960ce21f7b, type: 2}
+    - {fileID: 11400000, guid: ad319c635084ceb488f2d45cc16e3bdd, type: 2}
+  - panelName: FunctionOne
+    commands:
+    - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
+    - {fileID: 11400000, guid: c4b68b0a1ca666d4398220a5925c3e91, type: 2}
+    - {fileID: 11400000, guid: a36b4ddd499e17b45a04f767ed85509c, type: 2}
+    - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
+  - panelName: FunctionTwo
+    commands:
+    - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
+    - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}

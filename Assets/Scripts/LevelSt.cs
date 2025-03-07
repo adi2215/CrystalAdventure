@@ -15,8 +15,11 @@ public class LevelSt : ScriptableObject
 
     public Vector3 crystalPos;
 
-    public List<Item> commands;
+    public Panels[] panels;
+}
 
-    public int maxFu;
-
+[System.Serializable]
+public class Panels {
+    public string panelName;
+    public Item[] commands;
 }

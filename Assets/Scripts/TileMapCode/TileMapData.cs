@@ -8,11 +8,13 @@ public class TilemapData : MonoBehaviour
     public TileBase emptyTile;
     public TileBase[] tiles;
     public int[,] tileMatrix;
-    public LevelSt tilemapData;
+    public LevelSt[] tilemapData;
     public MapManager map;
+    public PanelController panels;
     public GameObject character, crystal;
+    public Data data;
 
-    private string filePath => Application.dataPath + "/" + tilemapData.levelName + ".txt";
+    private string filePath => Application.dataPath + "/" + tilemapData[data.NextLevel].levelName + ".txt";
 
     public void UpdateTilemapData()
     {
@@ -24,7 +26,7 @@ public class TilemapData : MonoBehaviour
 
         tileMatrix = StringToMatrix(File.ReadAllText(filePath));
 
-        EditorUtility.SetDirty(tilemapData);
+        EditorUtility.SetDirty(tilemapData[data.NextLevel]);
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
 
@@ -66,7 +68,7 @@ public class TilemapData : MonoBehaviour
             return;
         }
 
-        Debug.Log("Level Name: " + tilemapData.levelName);
+        Debug.Log("Level Name: " + tilemapData[data.NextLevel].levelName);
         Debug.Log("Matrix:");
 
         if (tileMatrix == null)

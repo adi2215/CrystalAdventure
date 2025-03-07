@@ -81,14 +81,17 @@ public class TilemapRestorer : Editor
             }
         }
 
-        tilemap.transform.position = tilemapData.tilemapData.tilemapPos;
-        tilemapData.crystal.transform.position = tilemapData.tilemapData.crystalPos;
-        tilemapData.character.transform.position = tilemapData.tilemapData.characterPos;
+        LevelSt level = tilemapData.tilemapData[tilemapData.data.NextLevel];
+
+        tilemap.transform.position = level.tilemapPos;
+        tilemapData.crystal.transform.position = level.crystalPos;
+        tilemapData.character.transform.position = level.characterPos;
         Debug.Log(tilemap.transform.localPosition);
 
         Debug.Log("Tilemap restored!");
 
         tilemapData.map.TileAppears();
+        tilemapData.panels.CheckPanels(level.panels);
     }
 
     private void SaveTilemap(TilemapData tilemapData)
@@ -122,9 +125,12 @@ public class TilemapRestorer : Editor
             }
         }
 
-        tilemapData.tilemapData.characterPos = tilemapData.character.transform.position;
-        tilemapData.tilemapData.crystalPos = tilemapData.crystal.transform.position; 
-        tilemapData.tilemapData.tilemapPos = tilemap.transform.position;
+        LevelSt level = tilemapData.tilemapData[tilemapData.data.NextLevel];
+
+        level.characterPos = tilemapData.character.transform.position;
+        level.crystalPos = tilemapData.crystal.transform.position; 
+        level.tilemapPos = tilemap.transform.position;
+        
         tilemapData.tileMatrix = tileMatrix;
         Debug.Log("Tilemap saved to matrix!");
     }

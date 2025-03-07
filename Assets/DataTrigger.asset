@@ -17,7 +17,8 @@ MonoBehaviour:
   music: 0
   burrons: 0
   wecanPlay: 0
-  RemoveBlock: 14
+  RemoveBlock: 0
+  NextLevel: 0
   RemoveBool: 0
   FallingCrystal: 1
   FallingCube: 1

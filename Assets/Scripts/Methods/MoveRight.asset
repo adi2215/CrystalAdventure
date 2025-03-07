@@ -12,9 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 514474167efa0cc49a2184865b6424aa, type: 3}
   m_Name: MoveRight
   m_EditorClassIdentifier: 
-  tile: {fileID: 0}
   image: {fileID: -688969838, guid: 38ca083a5cebe244ea112c45f5aeb669, type: 3}
   type: 2
-  actionType: 0
-  range: {x: 5, y: 4}
-  stackable: 0
+  iteration: 1

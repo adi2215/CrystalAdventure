@@ -12,7 +12,7 @@ public class PanningZoom : MonoBehaviour
     private float velocity = 0f;
 
     private bool hasTouched = false;
-    public LayerMask layerMask;
+    public LayerMask blockInputLayer;
     bool checkSurface = false;
 
     private void Start()
@@ -22,6 +22,9 @@ public class PanningZoom : MonoBehaviour
 
     private void Update() 
     {
+            if (EventSystem.current.IsPointerOverGameObject())
+                return;
+                
             if (Input.GetMouseButtonDown(0))
             {
                 touchStart = Camera.main.ScreenToWorldPoint(Input.mousePosition);
@@ -59,6 +62,21 @@ public class PanningZoom : MonoBehaviour
         Camera.main.orthographicSize = Mathf.SmoothDamp(Camera.main.orthographicSize, zoom, ref velocity, smoothTime);
     }
 
+    private bool IsPointerOverLayer()
+    {
+        if (!Input.GetMouseButton(0)) return false; // Проверяем только если нажата кнопка мыши
+
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, blockInputLayer))
+        {
+            Debug.Log("Клик по объекту: " + hit.collider.gameObject.name); // Проверяем, сработал ли Raycast
+            return true; // Если луч попал в объект слоя, блокируем ввод
+        }
+
+        return false;
+    }
+
+
     private bool CheckPoint()
     {
         if ((Input.touchCount > 0 || Input.GetMouseButton(0)) && !hasTouched)
@@ -87,4 +105,6 @@ public class PanningZoom : MonoBehaviour
 
         return checkSurface;
     }
+
+    
 }   

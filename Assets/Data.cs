@@ -16,6 +16,8 @@ public class Data : ScriptableObject
     public bool wecanPlay;
 
     public int RemoveBlock;
+    
+    public int NextLevel;
 
     public bool RemoveBool = false;
 

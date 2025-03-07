@@ -74,16 +74,16 @@ public class CharacterCode : MonoBehaviour
 
         else if (path.Count > 0 && List.play)
         {
-            Debug.Log(List.ButtonIDCheck.Count);
-            if (List.ButtonIDCheck[0] != "Attack")
+            //Debug.Log(List.ButtonIDCheck.Count);
+            if (List.SaveCommands[SlotType.Main][0].type.ToString() != "Attack")
             {
                 MoveAlong();
             }
-            else if (List.ButtonIDCheck[0] == "Attack")
+            else if (List.SaveCommands[SlotType.Main][0].type.ToString() == "Attack")
             {
                 path.RemoveAt(0);
                 speed = 0;
-                List.ButtonIDCheck.RemoveAt(0);
+                List.SaveCommands[SlotType.Main].RemoveAt(0);
                 StartCoroutine(AttackAnim());
             }
         }
@@ -126,7 +126,7 @@ public class CharacterCode : MonoBehaviour
             OverlayTile currentTile = path[0];
             PositionCharacterOnLine(path[0]);
             path.RemoveAt(0);
-            List.ButtonIDCheck.RemoveAt(0);
+            List.SaveCommands[SlotType.Main].RemoveAt(0);
             isPaused = true;
             pauseTimer = 0.1f;
 

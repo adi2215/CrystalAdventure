@@ -5,8 +5,6 @@ using UnityEngine.SceneManagement;
 
 public class Crystal : MonoBehaviour
 {
-    public Animator transition;
-
     public float transitionTime = 1f;
 
     public int num;
@@ -19,13 +17,11 @@ public class Crystal : MonoBehaviour
 
     public float speedFalling;
 
-    void Start() => target = targetPosition.transform.position + new Vector3(0, 0.12f, 0);
-
     void Update()
     {
         if (tran.FallingCrystal && transform.position != target && !tran.FallingMap)
         {
-            transform.position = Vector3.Lerp(transform.position, target, Time.deltaTime * speedFalling);
+            transform.position = Vector3.Lerp(transform.position, targetPosition.transform.position + new Vector3(0, 0.12f, 0), Time.deltaTime * speedFalling);
             speedFalling += 0.02f;
         }
 

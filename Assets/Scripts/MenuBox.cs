@@ -34,6 +34,6 @@ public class MenuBox : MonoBehaviour
 
     public void ButtonClose()
     {
-        level.LoadNextLeve((-1) * SceneManager.GetActiveScene().buildIndex);
+        level.LoadNextLeve();
     }
 }
