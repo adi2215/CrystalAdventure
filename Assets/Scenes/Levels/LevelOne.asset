@@ -35,3 +35,4 @@ MonoBehaviour:
     commands:
     - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
     - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
+  dialog: {fileID: 11400000, guid: 3b8d06a3dad584d46a24f146eb8bf33c, type: 2}

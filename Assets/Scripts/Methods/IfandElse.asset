@@ -9,18 +9,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 0}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2dcff1fbc1a424340b50e0adf752499e, type: 3}
-  m_Name: DataTrigger
+  m_Script: {fileID: 11500000, guid: 514474167efa0cc49a2184865b6424aa, type: 3}
+  m_Name: IfandElse
   m_EditorClassIdentifier: 
-  trans: 0
-  menuclose: 1
-  music: 0
-  burrons: 0
-  wecanPlay: 0
-  RemoveBlock: 0
-  NextLevel: 0
-  RemoveBool: 0
-  FallingCrystal: 1
-  FallingCube: 1
-  FallingMap: 1
-  DialogManager: 0
+  image: {fileID: 1245215862, guid: de0a53a62ed39a94e984c250e245ca24, type: 3}
+  type: 7
+  iteration: 1

@@ -10,6 +10,7 @@ public class TilemapData : MonoBehaviour
     public int[,] tileMatrix;
     public LevelSt[] tilemapData;
     public MapManager map;
+    public DialogManager dialogs;
     public PanelController panels;
     public GameObject character, crystal;
     public Data data;
