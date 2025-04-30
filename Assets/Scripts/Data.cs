@@ -26,4 +26,6 @@ public class Data : ScriptableObject
     public bool FallingCube = true;
 
     public bool FallingMap = true;
+
+    public bool DialogManager = false;
 }

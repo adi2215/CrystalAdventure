@@ -16,6 +16,8 @@ public class LevelSt : ScriptableObject
     public Vector3 crystalPos;
 
     public Panels[] panels;
+
+    public DialogTrigger dialog;
 }
 
 [System.Serializable]

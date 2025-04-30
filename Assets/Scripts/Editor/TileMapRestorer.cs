@@ -88,6 +88,11 @@ public class TilemapRestorer : Editor
         tilemapData.character.transform.position = level.characterPos;
         Debug.Log(tilemap.transform.localPosition);
 
+        if (level.dialog != null)
+        {
+            tilemapData.dialogs.OpenDialogue(level.dialog);
+        }
+
         Debug.Log("Tilemap restored!");
 
         tilemapData.map.TileAppears();

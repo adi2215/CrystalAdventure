@@ -26,6 +26,12 @@ public class Levelloader : MonoBehaviour
         tran.music = false;
     }
 
+    public void LoadLevelIndex(int index)
+    {
+        StartCoroutine(LoadLevel(index));
+        tran.music = false;
+    }
+
     IEnumerator LoadLevel(int levelIndex)
     {
         if (levelIndex == 0)
@@ -33,7 +39,10 @@ public class Levelloader : MonoBehaviour
             tran.menuclose = false;
         }
 
-        tran.NextLevel++;
+        if (SceneManager.GetActiveScene().name == "Menu")
+            tran.NextLevel = levelIndex;
+        else
+            tran.NextLevel++;
 
         transition.SetTrigger("Start");
 
