@@ -1,15 +1,15 @@
 using System.Collections.Generic;
-using System.IO;
 using UnityEngine;
+using UnityEngine.Tilemaps;
 
 [CreateAssetMenu(menuName = "Scriptable object/Level")]
 public class LevelSt : ScriptableObject
 {
-    public string levelName;
-    
-    public int[,] tileMatrix;
+    public List<TileInfo> tiles;
 
-    public Vector3 tilemapPos;
+    /*public string levelName;
+    
+    public int[,] tileMatrix;*/
 
     public Vector3 characterPos;
 
@@ -21,7 +21,15 @@ public class LevelSt : ScriptableObject
 }
 
 [System.Serializable]
-public class Panels {
+public class Panels
+{
     public string panelName;
     public Item[] commands;
+}
+
+[System.Serializable]
+public class TileInfo
+{
+    public Vector3Int position;
+    public TileBase tile;
 }

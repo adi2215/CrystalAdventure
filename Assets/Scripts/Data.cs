@@ -28,4 +28,8 @@ public class Data : ScriptableObject
     public bool FallingMap = true;
 
     public bool DialogManager = false;
+
+    public int commandUsed = 0;
+
+    public int currentLevel;
 }

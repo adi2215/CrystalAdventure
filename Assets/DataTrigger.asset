@@ -13,14 +13,16 @@ MonoBehaviour:
   m_Name: DataTrigger
   m_EditorClassIdentifier: 
   trans: 0
-  menuclose: 1
+  menuclose: 0
   music: 0
   burrons: 0
   wecanPlay: 0
   RemoveBlock: 0
   NextLevel: 0
   RemoveBool: 0
-  FallingCrystal: 1
-  FallingCube: 1
-  FallingMap: 1
-  DialogManager: 0
+  FallingCrystal: 0
+  FallingCube: 0
+  FallingMap: 0
+  DialogManager: 1
+  commandUsed: 0
+  currentLevel: 0

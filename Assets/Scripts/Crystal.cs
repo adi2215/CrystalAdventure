@@ -11,21 +11,19 @@ public class Crystal : MonoBehaviour
 
     public Data tran;
 
-    public GameObject targetPosition;
-
-    private Vector3 target;
+    public Vector3 targetPosition;
 
     public float speedFalling;
 
     void Update()
     {
-        if (tran.FallingCrystal && transform.position != target && !tran.FallingMap)
+        if (tran.FallingCrystal && transform.position != targetPosition && !tran.FallingMap)
         {
-            transform.position = Vector3.Lerp(transform.position, targetPosition.transform.position + new Vector3(0, 0.12f, 0), Time.deltaTime * speedFalling);
+            transform.position = Vector3.Lerp(transform.position, targetPosition + new Vector3(0, 0.12f, 0), Time.deltaTime * speedFalling);
             speedFalling += 0.02f;
         }
 
-        if (transform.position == target)
+        if (Vector3.Distance(transform.position, targetPosition + new Vector3(0, 0.12f, 0)) < 0.01f)
         {
             tran.FallingCrystal = false;
         }
@@ -34,6 +32,7 @@ public class Crystal : MonoBehaviour
         {
             GetComponent<PolygonCollider2D>().enabled = true;
             GetComponentInParent<Animator>().enabled = true;
+            GetComponent<Crystal>().enabled = false;
         }
     }
 

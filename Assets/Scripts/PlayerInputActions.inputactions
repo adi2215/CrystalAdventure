@@ -1,0 +1,40 @@
+{
+    "name": "PlayerInputActions",
+    "maps": [
+        {
+            "name": "ActionManager",
+            "id": "f9b01fd9-7b00-474c-aa97-d344f4ad33f0",
+            "actions": [
+                {
+                    "name": "SkipDialog",
+                    "type": "Button",
+                    "id": "0138160d-bca2-45ef-9f5c-aa7cc0dba085",
+                    "expectedControlType": "Button",
+                    "processors": "",
+                    "interactions": "",
+                    "initialStateCheck": false
+                }
+            ],
+            "bindings": [
+                {
+                    "name": "",
+                    "id": "8c5a9c5f-362a-48aa-af29-eba186387aaa",
+                    "path": "<Keyboard>/space",
+                    "interactions": "",
+                    "processors": "",
+                    "groups": "",
+                    "action": "SkipDialog",
+                    "isComposite": false,
+                    "isPartOfComposite": false
+                }
+            ]
+        }
+    ],
+    "controlSchemes": [
+        {
+            "name": "New control scheme",
+            "bindingGroup": "New control scheme",
+            "devices": []
+        }
+    ]
+}

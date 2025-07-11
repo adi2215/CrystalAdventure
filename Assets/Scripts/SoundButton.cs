@@ -1,20 +1,29 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class SoundButton : MonoBehaviour
 {
     public AudioClip sound;
-    public AudioClip soundItems;
     public AudioSource _source;
 
-    public void SoundClick()
+    private static SoundButton instance;
+
+    private void Awake()
     {
-        
+        if (instance != null && instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
+        DontDestroyOnLoad(gameObject);
     }
 
-    public void SoundItemClick()
+    public void PlaySound()
     {
-        _source.PlayOneShot(soundItems);
+        if (_source.isPlaying) return;
+
+        _source.clip = sound;
+        _source.Play();
     }
 }

@@ -52,11 +52,7 @@ public class MovingManager : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
         }
-
-        else
-        {
-            Destroy(gameObject);
-        }
+        Debug.Log("fef");
     }
 
     public void MoveCharacter(Item command, SlotType type)
@@ -126,8 +122,6 @@ public class MovingManager : MonoBehaviour
         Items.GetDestroyItem();
         Items1.GetDestroyItem();
         Items2.GetDestroyItem();
-
-        button.GetComponent<Button>().enabled = true;
 
         Play.SetActive(true);
         Rewind.SetActive(false);
@@ -227,7 +221,6 @@ public class MovingManager : MonoBehaviour
             Debug.Log(ButtonID[i]);
         }*/
         play = true;
-        button.GetComponent<Button>().enabled = false;
         Play.SetActive(false);
         Rewind.SetActive(true);
     }
