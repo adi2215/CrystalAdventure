@@ -7,6 +7,8 @@ public class CharacterCode : MonoBehaviour
 {
     public OverlayTile activeTile;
 
+    private OverlayTile _tile;
+
     private SpriteRenderer order;
     private Rigidbody2D rb;
 
@@ -19,23 +21,22 @@ public class CharacterCode : MonoBehaviour
 
     private List<OverlayTile> path = new List<OverlayTile>();
 
-    public CursorR tile;
+    /*public GameObject anim;
 
-    public GameObject anim;
-
-    public GameObject Enemy;
+    public GameObject Enemy;*/
 
     public Button button;
 
-    private bool Falling;
-
-    public GameObject targetPosition;
+    public Vector3 targetPosition;
+    public GameObject finishLevel;
     
     public float speedFalling;
 
     private bool isPaused = false;
 
     private float pauseTimer = 0f;
+
+    private bool beginingTile = false;
 
     private void Start()
     {
@@ -46,15 +47,20 @@ public class CharacterCode : MonoBehaviour
 
     void Update()
     {
-        if (tran.FallingCube && transform.position != targetPosition.transform.position && !tran.FallingMap)
+        if (tran.FallingCube == false)
+            return;
+        else
         {
-            transform.position = Vector3.Lerp(transform.position, targetPosition.transform.position, Time.deltaTime * speedFalling);
-            speedFalling += 0.02f;
-        }
+            if (tran.FallingCube && transform.position != targetPosition && !tran.FallingMap)
+            {
+                transform.position = Vector3.Lerp(transform.position, targetPosition, Time.deltaTime * speedFalling);
+                speedFalling += 0.02f;
+            }
 
-        if (transform.position == targetPosition.transform.position)
-        {
-            tran.FallingCube = false;
+            if (Vector3.Distance(transform.position, targetPosition) < 0.01f)
+            {
+                tran.FallingCube = false;
+            }
         }
     }
 
@@ -62,8 +68,9 @@ public class CharacterCode : MonoBehaviour
     {
         if (!star1 && List.play)
         {
-            path = pathFinder.FindWays(tile.tile, List);
+            path = pathFinder.FindWays(_tile, List);
             star1 = true;
+            tran.commandUsed = List.Commands[SlotType.Main].Count;
         }
 
         if (path.Count == 0)
@@ -75,17 +82,16 @@ public class CharacterCode : MonoBehaviour
         else if (path.Count > 0 && List.play)
         {
             //Debug.Log(List.ButtonIDCheck.Count);
-            if (List.SaveCommands[SlotType.Main][0].type.ToString() != "Attack")
-            {
-                MoveAlong();
-            }
-            else if (List.SaveCommands[SlotType.Main][0].type.ToString() == "Attack")
+
+            MoveAlong();
+
+            /*else if (List.SaveCommands[SlotType.Main][0].type.ToString() == "Attack")
             {
                 path.RemoveAt(0);
                 speed = 0;
                 List.SaveCommands[SlotType.Main].RemoveAt(0);
                 StartCoroutine(AttackAnim());
-            }
+            }*/
         }
 
     }
@@ -97,11 +103,19 @@ public class CharacterCode : MonoBehaviour
             Destroy(other.gameObject);
             Invoke(nameof(TransitionScene), 0.5f);
         }
+
+        if (other.gameObject.tag == "Cube" && !beginingTile)
+        {
+            Debug.Log(other.gameObject);
+            _tile = other.gameObject.GetComponent<OverlayTile>();
+            Debug.Log(_tile.gameObject.transform.position);
+            beginingTile = true;
+        }
     }
 
     private void TransitionScene()
     {
-        tran.trans = true;
+        finishLevel.SetActive(true);
     }
 
     private void MoveAlong()
@@ -130,10 +144,10 @@ public class CharacterCode : MonoBehaviour
             isPaused = true;
             pauseTimer = 0.1f;
 
-            if (currentTile.typeSprite == "CloudsTileMap_0")
+            /*if (currentTile.typeSprite == "CloudsTileMap_0")
             {
                 StartCoroutine(FallingCube());
-            }
+            }*/
         }
     }
 
@@ -147,7 +161,7 @@ public class CharacterCode : MonoBehaviour
         rb.gravityScale = 0.2f;
     }
 
-    IEnumerator AttackAnim()
+    /*IEnumerator AttackAnim()
     {
         yield return new WaitForSeconds(0.5f);
         anim.SetActive(true);
@@ -155,12 +169,14 @@ public class CharacterCode : MonoBehaviour
         Enemy.SetActive(false);
         yield return new WaitForSeconds(0.5f);
         speed = 1f;
-    }
-    
+    }*/
+
+
     private void PositionCharacterOnLine(OverlayTile tile)
     {
         transform.position = new Vector3(tile.transform.position.x, tile.transform.position.y, tile.transform.position.z + 0.001f);
         GetComponent<SpriteRenderer>().sortingOrder = tile.GetComponent<SpriteRenderer>().sortingOrder;
         activeTile = tile;
+        _tile = activeTile;
     }
 }

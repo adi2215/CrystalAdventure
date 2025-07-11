@@ -6,28 +6,28 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/Scenes/Menu.unity
+    path: Assets/Scenes/GameScenes/CollectorLevel.unity
+    guid: 7849855675fa7ba4cae9470f68b4d371
+  - enabled: 0
+    path: Assets/Scenes/GameScenes/Menu.unity
     guid: 3a21c8a12346e6f4bbb140440003a140
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/LevelMove/FirstLevel.unity
     guid: bf4c76b2de44e364cbe2881ec740f125
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/LevelMove/SecondLevel.unity
     guid: 9e6d9f830014db94a8a49f2db9c60b04
-  - enabled: 1
-    path: Assets/Scenes/Levels/CollectorLevel.unity
-    guid: 7849855675fa7ba4cae9470f68b4d371
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/LevelFunction/SceneFu.unity
     guid: 4f2a40deb1ce05a4b89e76f12805819b
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/LevelFunction/SceneFu 1.unity
     guid: 45c5951e714500f4ba0780df1b95b753
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/LevelFunction/SceneWh.unity
     guid: 7af94bcb554bed241b03904d2cc38efa
-  - enabled: 1
-    path: Assets/Scenes/BetaEnd.unity
+  - enabled: 0
+    path: Assets/Scenes/LevelMove/BetaEnd.unity
     guid: 123489d223eb6ff4d98bedfe2999f884
   - enabled: 0
     path: Assets/Scenes/UpdateLevel.unity

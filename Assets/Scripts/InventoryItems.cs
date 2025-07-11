@@ -36,6 +36,7 @@ public class InventoryItems : MonoBehaviour, IPointerClickHandler
 
         countIteration.text = item.iteration.ToString();
         countIteration.enabled = false;
+        Debug.Log("fef");
     }
 
     public void ModifyItem(int number) => item.iteration = number;

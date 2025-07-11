@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce5e892368934e8438eb372effcc9537, type: 3}
+  m_Name: LevelThree
+  m_EditorClassIdentifier: 
+  tiles:
+  - position: {x: 0, y: -1, z: 0}
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+  - position: {x: 0, y: 0, z: 0}
+    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
+  - position: {x: 1, y: 0, z: 0}
+    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+  - position: {x: 2, y: 0, z: 0}
+    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+  - position: {x: 2, y: 1, z: 0}
+    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
+  characterPos: {x: 0.16, y: -1.4999999, z: 1.001}
+  crystalPos: {x: 0.16, y: -1.18, z: 1.001}
+  panels:
+  - panelName: Main
+    commands:
+    - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
+    - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
+  dialog: {fileID: 0}

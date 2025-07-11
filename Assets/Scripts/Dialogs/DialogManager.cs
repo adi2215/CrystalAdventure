@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
+using UnityEngine.InputSystem;
 
 public class DialogManager : MonoBehaviour
 {
@@ -18,6 +19,33 @@ public class DialogManager : MonoBehaviour
     private Actor[] currentActors;
     private int activeMessage = 0;
     private DialogTrigger current_dialog;
+
+    private PlayerInputActions inputActions;
+
+    void Awake()
+    {
+        inputActions = new PlayerInputActions();
+    }
+
+    void OnEnable()
+    {
+        inputActions.ActionManager.Enable();
+        Debug.Log("dialogue enabled");
+        inputActions.ActionManager.SkipDialog.performed += OnNext;
+    }
+
+    void OnDisable()
+    {
+        inputActions.ActionManager.SkipDialog.performed -= OnNext;
+        inputActions.ActionManager.Disable();
+    }
+
+    private void OnNext(InputAction.CallbackContext context)
+    {
+        Debug.Log("Dialogfgg33333");
+        if (data.DialogManager == true)
+            NextMessage();
+    }
 
     public void OpenDialogue(DialogTrigger dialog)
     {
@@ -43,6 +71,7 @@ public class DialogManager : MonoBehaviour
     public void NextMessage()
     {
         activeMessage++;
+        Debug.Log("Dialogfgg");
         if (activeMessage < currentMessages.Length)
         {
             DisplayMessage();
@@ -66,11 +95,4 @@ public class DialogManager : MonoBehaviour
         backGroundBox.transform.localScale = Vector3.zero;
     }
 
-    void Update()
-    {
-        if (Input.GetKeyDown(KeyCode.Space) && data.DialogManager == true)
-        {
-            NextMessage();
-        }
-    }
 }

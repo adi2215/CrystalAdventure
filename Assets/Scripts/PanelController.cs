@@ -16,8 +16,10 @@ public class PanelController : MonoBehaviour
 
     public void CheckPanels(Panels[] panels)
     {
-        for (int i = buttonPanels.Length - 1; i > panels.Length; i--)
+        for (int i = buttonPanels.Length - 1; i >= panels.Length; i--)
+        {
             buttonPanels[i].SetActive(false);
+        }
 
         numberOfPanels = panels.Length;
         initialPositions = new Vector3[buttonPanels.Length];
@@ -25,7 +27,7 @@ public class PanelController : MonoBehaviour
 
         for (int i = 0; i < numberOfPanels; i++)
         {
-            Debug.Log("23423");
+            Debug.Log("23423efe");
             spawnMethods[i].CheckItems(panels[i].commands);
             initialPositions[i] = buttonPanels[i].transform.localPosition;
             isMoved[i] = false; 

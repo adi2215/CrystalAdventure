@@ -55,11 +55,15 @@ public class MapManager : MonoBehaviour
         data.FallingCrystal = true;
         data.FallingCube = true;
         data.FallingMap = true;
+        TileAppears();
     }
     
     public void TileAppears()
     {
         var TileMap = gameObject.GetComponentInChildren<Tilemap>();
+        TilemapData tileLoad = TileMap.GetComponent<TilemapData>();
+        tileLoad.LoadTilemapFromData(data.NextLevel % 6);
+
         map = new Dictionary<Vector2Int, OverlayTile>();
         BoundsInt bounds = TileMap.cellBounds;
         Debug.Log(bounds);
@@ -103,18 +107,9 @@ public class MapManager : MonoBehaviour
 
     void Update()
     {
-        /*if (!DontOn)
-        {
-            StartMove();
-            //Debug.Log("LOL");
-        } */
-
         if (MoveBlock)
             return;
 
-        //_current = Mathf.MoveTowards(_current, _target, 0.14f * Time.deltaTime);
-        //Obj[i].transform.position = Vector3.Lerp(Obj[i].transform.position, cellPosition, 0.1f * curve.Evaluate(_current));
-        //Debug.Log(curve.Evaluate(_current));
         for (int i = 0; i < Tiles.Count; i++)
         {
             Tile currentTile = tilemap.GetTile<Tile>(Tiles[i]);

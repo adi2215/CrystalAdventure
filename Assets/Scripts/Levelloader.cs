@@ -28,7 +28,7 @@ public class Levelloader : MonoBehaviour
 
     public void LoadLevelIndex(int index)
     {
-        StartCoroutine(LoadLevel(index));
+        StartCoroutine(LoadLevel(index + 1));
         tran.music = false;
     }
 
@@ -48,7 +48,7 @@ public class Levelloader : MonoBehaviour
 
         yield return new WaitForSeconds(transitionTime);
 
-        SceneManager.LoadScene(levelIndex);
+        SceneManager.LoadScene(0);
     }
 
 }

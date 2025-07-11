@@ -19,6 +19,8 @@ public class SpawnScript : MonoBehaviour
                 obj.SetActive(false);  
             }
         }
+
+        Debug.Log("geg");
     }
 
     public void PickUpItem(Item method)
