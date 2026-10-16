@@ -71,6 +71,12 @@ public class MovingManager : MonoBehaviour
 
     public CharacterCode character;
 
+    [Header("Новое ядро (перенос на CrystalCore)")]
+    [Tooltip("Куда идти, решает новое ядро CrystalCore, а показывает всё тот же куб и старый UI. Выключено — игра как раньше.")]
+    public bool useCrystalCore = false;
+    [Tooltip("Писать в Console итог каждого запуска через ядро (только в редакторе)")]
+    public bool logCoreRuns = true;
+
     public RunState State { get; private set; } = RunState.Idle;
     public bool IsPlaying => State == RunState.Playing;
     /// <summary>Можно ли сейчас менять карточки.</summary>
@@ -348,7 +354,38 @@ public class MovingManager : MonoBehaviour
         LastRunEdgeHits = 0;
         State = RunState.Playing;
         SyncButtons();
-        character.RunCommands(queue, OnRunFinished, OnStep, OnEdge, CanRunStep, OnSkip);
+        if (useCrystalCore && TryPlanWithCore(out var plan))
+            character.RunPlan(queue, plan, OnRunFinished, OnStep, OnEdge, OnSkip);
+        else
+            character.RunCommands(queue, OnRunFinished, OnStep, OnEdge, CanRunStep, OnSkip);
+    }
+
+    /// <summary>
+    /// Посчитать прогон новым ядром. Не вышло (нет уровня / старта / ошибка) — false, и игра
+    /// идёт по-старому, чтобы флаг useCrystalCore никогда не ломал прохождение.
+    /// </summary>
+    bool TryPlanWithCore(out List<CrystalAdventure.UnityLayer.CorePlannedStep> plan)
+    {
+        plan = null;
+        var level = TilemapData.CurrentLevel;
+        var start = character != null ? character.StartTile : null;
+        if (level == null || start == null) return false;
+        try
+        {
+            if (!CrystalAdventure.UnityLayer.CoreRunBridge.TryPlan(this, level, new Vector2Int(start.gridLocation.x, start.gridLocation.y), out plan, out var result))
+                return false;
+#if UNITY_EDITOR
+            if (logCoreRuns)
+                Debug.Log($"[Crystal] Ядро: {level.name} — {result.Outcome}, ходов {result.Turns.Count}, карточек {result.BlocksUsed}, край {result.EdgeHits}");
+#endif
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[Crystal] Ядро не посчитало прогон, играю по-старому: " + e.Message);
+            plan = null;
+            return false;
+        }
     }
 
     void OnRunFinished()

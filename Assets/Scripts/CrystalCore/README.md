@@ -20,7 +20,7 @@ LevelDefinition ──► LevelSetup ──► Simulation.Run ──► Simulati
 | `Core/` | Правила игры: сетка, тайлы, враги, боссы, интерпретатор, ход | **Нет** (asmdef `noEngineReferences`) |
 | `Unity/` | Уровни (ScriptableObject), проигрывание, визуал, мост к старому UI | Да |
 | `Editor/` | Меню *Crystal Adventure → Validate All Levels* | Да (только редактор) |
-| `../../../CrystalCoreTests/` | 75 автотестов: ядро + сверка со старыми уровнями (`dotnet run`) | Нет |
+| `../../../CrystalCoreTests/` | 78 автотестов: ядро + сверка со старыми уровнями (`dotnet run`) | Нет |
 
 ## Как устроен ход (одновременно)
 1. **Prepare** — повороты, щит, Interact / Spell / Break Ice / Change Wind, призывы босса
@@ -44,7 +44,11 @@ LevelDefinition ──► LevelSetup ──► Simulation.Run ──► Simulati
 (эталонное решение каждого уровня через ядро и через `LegacyReplay` — эталон старых правил).
 **→ Создать LevelDefinition из LevelSt** — ассеты в `Assets/Scenes/GameScenes/CoreLevels` (старт, правила, оптимум, решение).
 
-## Подключение в сцене (≈20 минут)
+## Ядро в игре со старым кубом (Фаза 3)
+Галочка **Use Crystal Core** на объекте `MovingManager` в `CollectorLevel`: куда идти, решает ядро
+(`Bridge/CoreRunBridge` → `CharacterCode.RunPlan`), всё остальное — прежний код. Сцену настраивать не нужно.
+
+## Подключение в сцене полностью нового визуала (≈20 минут)
 1. Unity сам скомпилирует папку. Старые скрипты не тронуты.
 2. **Create → Crystal Adventure → Entity Prefabs**: укажи префабы героя / кристалла / врагов.
    На каждый префаб добавь компонент `EntityView` (SpriteRenderer подхватится сам).

@@ -157,3 +157,8 @@ namespace UnityEditor
     }
     public static class Undo { public static void RecordObject(UnityEngine.Object o, string n) { } }
 }
+
+namespace UnityEditor.SceneManagement
+{
+    public static class EditorSceneManager { public static bool MarkAllScenesDirty() => true; }
+}

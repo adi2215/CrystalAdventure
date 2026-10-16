@@ -55,14 +55,15 @@
 
 ## Тесты ядра
 
-`CrystalCoreTests/` (вне `Assets`, Unity его не видит): `Tests.cs` — тесты ядра, `LegacyTests.cs` — старые правила и сверка с настоящими `Level*.asset` (эталонные решения + ~7000 случайных программ: ядро против `LegacyReplay`), `Stubs/` — заглушки Unity и старых классов игры (держать сигнатуры как в `Assets/Scripts`). Всего 75 тестов. Файл `.csproj` в репозиторий не попадает (`*.csproj` в `.gitignore`). Чтобы запустить, нужен .NET SDK 8 и консольный проект (`net8.0`, `LangVersion 9.0`, `EnableDefaultCompileItems=false`), который включает `CrystalCoreTests/**/*.cs` и **весь** `Assets/Scripts/CrystalCore/**/*.cs` (тесты используют и `Unity/`, и `Editor/` через заглушки). Любые изменения в `CrystalCore` сопровождать тестом здесь.
+`CrystalCoreTests/` (вне `Assets`, Unity его не видит): `Tests.cs` — тесты ядра, `LegacyTests.cs` — старые правила и сверка с настоящими `Level*.asset` (эталонные решения + ~7000 случайных программ: ядро против `LegacyReplay`), `Stubs/` — заглушки Unity и старых классов игры (держать сигнатуры как в `Assets/Scripts`). Всего 78 тестов. Файл `.csproj` в репозиторий не попадает (`*.csproj` в `.gitignore`). Чтобы запустить, нужен .NET SDK 8 и консольный проект (`net8.0`, `LangVersion 9.0`, `EnableDefaultCompileItems=false`), который включает `CrystalCoreTests/**/*.cs` и **весь** `Assets/Scripts/CrystalCore/**/*.cs` (тесты используют и `Unity/`, и `Editor/` через заглушки). Любые изменения в `CrystalCore` сопровождать тестом здесь.
 
 ## Перенос на новое ядро — состояние
 
 - **Решения автора:** гриб — старое поведение («встал на гриб → следующий шаг на 2 клетки, куда велит карточка»; `LevelRules.ClassicMushroom`, по умолчанию true). Сцены-прототипы не переносим.
 - **Фазы 1–2 сделаны:** ядро повторяет старые правила (цвет клетки → `ActionBlock.Guard` и пропуск без хода мира, край → `Bumped.Info = "edge"` и `SimulationResult.EdgeHits`, кристалл по приходу → `PickupOnArrival`, While со скобкой и повторами каждой карточки → `ItemProgramAdapter.FromMovingManager`, звёзды по карточкам без «def»). Импорт старых уровней — `Unity/Level/LegacyLevelImport`. Меню **Crystal Adventure → Ядро → Проверить совпадение со старой системой** и **→ Создать LevelDefinition из LevelSt** (`Editor/LegacyParityCheck`, эталон старых правил — `Editor/LegacyReplay`).
 - **Известное отличие:** в программах длиннее 300 шагов старый `MovingManager` молча выкидывал часть повторов цикла, ядро останавливается на 300-м ходу (`TurnLimit`).
-- **Дальше (Фаза 3):** `MovingManager` остаётся лицом UI, исполнение — через `CrystalGameController` под флагом; герой — старый куб (анимации `CharacterCode`), поле рисует `TilemapData`, звёзды сохраняет `FinishingLevel` (`saveStars = false`).
+- **Фаза 3 (код готов, ждёт проверки автором):** галочка `MovingManager.useCrystalCore` (по умолчанию выключена). Включена — `StartPlay` берёт план у `Unity/Bridge/CoreRunBridge` (ядро считает прогон по `TilemapData.CurrentLevel` и старту `CharacterCode.StartTile`), а `CharacterCode.RunPlan` проигрывает его прежними анимациями. Кристаллы, победа, подсветка карточек, звёзды, туториал, подсказки — старый код. Ход i ядра = шаг i очереди `BuildQueue`, поэтому подсветка по номеру шага верна. Если ядро не смогло посчитать — откат на старый путь с предупреждением. `CrystalGameController` (полностью новый визуал: `EntityView`, враги) пока не используется — это следующий этап.
+- **Уровни:** в игре 15 уровней. `LevelFive`, `LevelSeven`, `LevelEleven` были черновиками вне списка, `LevelEleven` — точная копия `LevelTen`. Кнопка **Crystal Adventure → Уровни → Заполнить черновики и добавить в игру** (`Editor/DraftLevels`) заменяет `LevelEleven` уровнем «Змейка» (грибы + цветные клетки, оптимум 7, без цветов — 8) и дописывает все три в конец списка `TilemapData` (№16–18; вставка в середину сдвинула бы сохранённые звёзды — `SaveManager` хранит их по номеру уровня).
 
 ## Стиль кода
 
@@ -84,7 +85,8 @@
 
 ## Что стоит обсудить с автором
 
-- План переноса сцен со старой системы (`MovingManager` + `CharacterCode`) на `CrystalGameController`.
+- После проверки Фазы 3: включить `useCrystalCore` насовсем, потом — переход на `CrystalGameController` (враги, новые карточки, свой визуал).
+- Уровни 16–18 (`LevelFive`, `LevelSeven` — лёгкие) открывают главу Winter, но нарисованы травой Forest — переставить или перерисовать?
 - Единое имя помощницы (Эла / Luma).
 - Сцены-прототипы не нужны (подтверждено) — можно ли удалить их файлы из проекта. `Menu` тоже выключена в сборке — так и задумано?
 - Проект тестов без `.csproj` в репозитории — добавить, например, `CrystalCoreTests/CrystalCoreTests.csproj` с исключением в `.gitignore`.

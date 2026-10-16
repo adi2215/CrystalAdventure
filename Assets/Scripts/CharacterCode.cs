@@ -254,6 +254,18 @@ public class CharacterCode : MonoBehaviour
         _run = StartCoroutine(RunRoutine(queue, onDone, onStep, onEdge, canRun, onSkip));
     }
 
+    /// <summary>
+    /// То же, но КУДА идти, уже решило новое ядро (MovingManager.useCrystalCore → CoreRunBridge):
+    /// шаг i плана = шаг i очереди queue. Анимации, кристаллы и победа — прежние.
+    /// </summary>
+    public void RunPlan(List<Item> queue, IReadOnlyList<CrystalAdventure.UnityLayer.CorePlannedStep> plan, Action onDone,
+                        Action<int> onStep, Action<int> onEdge, Action<int> onSkip)
+    {
+        StopRun();
+        if (button != null) button.enabled = true;
+        _run = StartCoroutine(RunRoutine(queue, onDone, onStep, onEdge, null, onSkip, plan));
+    }
+
     [Tooltip("Пауза, когда карточка пропущена (условие не выполнено), сек")]
     public float skipPause = 0.22f;
 
@@ -285,17 +297,21 @@ public class CharacterCode : MonoBehaviour
         PositionCharacterOnLine(startTile, collect: false);
     }
 
+    /// <param name="plan">null — старый путь (WayTiles решает сам); иначе шаги, посчитанные ядром.</param>
     IEnumerator RunRoutine(List<Item> queue, Action onDone, Action<int> onStep, Action<int> onEdge,
-                           Func<int, OverlayTile, bool> canRun = null, Action<int> onSkip = null)
+                           Func<int, OverlayTile, bool> canRun = null, Action<int> onSkip = null,
+                           IReadOnlyList<CrystalAdventure.UnityLayer.CorePlannedStep> plan = null)
     {
         var map = MapManager.Instance != null ? MapManager.Instance.map : null;
         int token = _runToken;
+        int count = plan != null ? plan.Count : queue.Count;
 
-        for (int i = 0; i < queue.Count; i++)
+        for (int i = 0; i < count; i++)
         {
             if (token != _runToken) yield break;
-            var cmd = queue[i];
-            if (canRun != null && !canRun(i, _tile))
+            var cmd = i < queue.Count ? queue[i] : null;
+            bool skipped = plan != null ? plan[i].Skipped : canRun != null && !canRun(i, _tile);
+            if (skipped)
             {
                 // Условие не выполнено (не тот цвет клетки) — карточка пропускается.
                 onSkip?.Invoke(i);
@@ -305,13 +321,13 @@ public class CharacterCode : MonoBehaviour
             }
             if (cmd != null) Face(cmd.type);
             onStep?.Invoke(i);
-            var step = WayTiles.Resolve(_tile, cmd, map);
+            var step = plan != null ? PlannedStep(plan[i], map) : WayTiles.Resolve(_tile, cmd, map);
 
             if (step.target == null)
             {
                 // Дальше пусто — куб доходит до края, балансирует и возвращается. Ход потрачен.
                 onEdge?.Invoke(i);
-                yield return EdgeTeeter(WayTiles.Direction(cmd.type));
+                yield return EdgeTeeter(cmd != null ? WayTiles.Direction(cmd.type) : Vector3Int.zero);
             }
             else if (step.fromMushroom || step.onMushroom)
             {
@@ -335,6 +351,18 @@ public class CharacterCode : MonoBehaviour
 
         _run = null;
         onDone?.Invoke();
+    }
+
+    /// <summary>Шаг ядра → тот же Step, что дал бы WayTiles (прыжок — если стоим на грибе или встаём на гриб).</summary>
+    WayTiles.Step PlannedStep(CrystalAdventure.UnityLayer.CorePlannedStep planned, Dictionary<Vector3Int, OverlayTile> map)
+    {
+        var step = new WayTiles.Step();
+        if (!planned.Moved || map == null) return step;
+        if (!map.TryGetValue(new Vector3Int(planned.To.x, planned.To.y, 0), out var target) || target == null) return step;
+        step.target = target;
+        step.fromMushroom = WayTiles.IsMushroom(_tile);
+        step.onMushroom = WayTiles.IsMushroom(target);
+        return step;
     }
 
     /// <summary>

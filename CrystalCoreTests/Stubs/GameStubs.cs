@@ -29,6 +29,7 @@ public class LevelSt : ScriptableObject
 {
     public List<TileInfo> tiles;
     public Vector3 characterPos;
+    public Panels[] panels;
     public int optimalCards;
     public List<SolutionCard> solutionMain = new List<SolutionCard>();
     public List<SolutionCard> solutionF1 = new List<SolutionCard>();
@@ -65,6 +66,7 @@ public class SolutionCard
 }
 
 [System.Serializable] public class TileInfo { public Vector3Int position; public TileBase tile; public SuperBlocks superTileType = SuperBlocks.None; public TileColor color = TileColor.None; }
+[System.Serializable] public class Panels { public string panelName; public Item[] commands; }
 public enum TileColor { None, Red, Blue, Yellow }
 public enum SuperBlocks { None, Mushroom, Crystal }
 public class TilemapData : MonoBehaviour { public LevelSt[] tilemapData; public Tilemap tilemap; }

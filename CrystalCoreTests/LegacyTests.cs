@@ -165,6 +165,65 @@ static class LegacyTests
             });
         }
 
+        T.Run("new level «Snake» (replaces the LevelEleven copy): solution wins, matches old rules", () =>
+        {
+            var types = new Dictionary<string, ItemType>
+            {
+                { DraftLevels.ForwardGuid, ItemType.Forward }, { DraftLevels.LeftGuid, ItemType.Left }, { DraftLevels.RightGuid, ItemType.Right },
+                { DraftLevels.BottomGuid, ItemType.Bottom }, { DraftLevels.FunctionOneGuid, ItemType.FunctionOne }, { DraftLevels.WhileGuid, ItemType.While },
+            };
+            var lvl = new LevelSt { name = "Snake" };
+            DraftLevels.FillSnake(lvl, i => new UnityEngine.Tilemaps.TileBase(), g => { var it = new Item(); it.type = types[g]; return it; });
+            var line = LegacyParityCheck.Check(lvl, null, out var verdict);
+            T.True(verdict == LegacyParityCheck.Verdict.Ok, line);
+            T.True(LegacyLevelImport.TryFindStartCell(lvl, null, out var start, out var d) && start == DraftLevels.SnakeStart && d < 0.001f, "start cell");
+            T.Eq(2, lvl.tiles.Count(t => t.superTileType == SuperBlocks.Crystal), "crystals");
+            T.Eq(4, lvl.tiles.Count(t => t.superTileType == SuperBlocks.Mushroom), "mushrooms");
+            T.True(lvl.panels[0].commands.All(c => c != null) && lvl.panels[1].commands.Any(c => c.type == ItemType.While), "cards on panels");
+            // Без цветов — на карточку больше (2★): Main [F1 F1 F1], F1 [F L While×5 R While×3] (найдено LevelSolver).
+            var plain = new LevelSt { name = "SnakePlain", tiles = lvl.tiles, characterPos = lvl.characterPos, optimalCards = 8,
+                solutionMain = new List<SolutionCard> { new SolutionCard { type = ItemType.FunctionOne }, new SolutionCard { type = ItemType.FunctionOne }, new SolutionCard { type = ItemType.FunctionOne } },
+                solutionF1 = new List<SolutionCard> { new SolutionCard { type = ItemType.Forward }, new SolutionCard { type = ItemType.Left }, new SolutionCard { type = ItemType.While, iterations = 4 },
+                                                      new SolutionCard { type = ItemType.Right }, new SolutionCard { type = ItemType.While, iterations = 2 } } };
+            line = LegacyParityCheck.Check(plain, null, out verdict);
+            T.True(verdict == LegacyParityCheck.Verdict.Ok, "plain: " + line);
+        });
+
+        T.Run("Phase 3 bridge: cards in MovingManager -> core plan for the old cube (all real levels)", () =>
+        {
+            foreach (var lvl in levels)
+            {
+                T.True(LegacyLevelImport.TryFindStartCell(lvl, null, out var start, out _), lvl.name + ": start");
+                var mm = new MovingManager();
+                foreach (var slot in new[] { SlotType.Main, SlotType.FunctionOne, SlotType.FunctionTwo })
+                {
+                    var sol = lvl.GetSolution(slot);
+                    mm.Commands[slot] = sol.Select(c => { var it = new Item(); it.type = c.type; return it; }).ToList();
+                    mm.Iterations[slot] = sol.Select(c => c.iterations).ToList();
+                    mm.Spans[slot] = sol.Select((c, i) => c.type == ItemType.While ? SolutionCard.ResolveSpan(sol, i) : 0).ToList();
+                    mm.Colors[slot] = sol.Select(c => c.color).ToList();
+                }
+                T.True(CoreRunBridge.TryPlan(mm, lvl, start, out var plan, out var result), lvl.name + ": plan");
+                var old = LegacyReplay.Run(lvl, start, s => ItemProgramAdapter.SolutionCards(lvl, s));
+                T.True(result.Won && old.Won, lvl.name + ": won");
+                T.Eq(old.Steps, plan.Count, lvl.name + ": steps");
+                T.Eq(old.Skipped, plan.Count(p => p.Skipped), lvl.name + ": skipped");
+                T.Eq(old.Steps - old.Skipped - old.EdgeHits, plan.Count(p => p.Moved), lvl.name + ": moves");
+                T.True(plan[plan.Count - 1].To == old.Final, $"{lvl.name}: final {plan[plan.Count - 1].To} vs {old.Final}");
+            }
+        });
+        T.Run("Phase 3 bridge: edge and skip become plan steps", () =>
+        {
+            var l = new LevelSetup(); l.AddRect(0, 0, 2, 0); l.Set(1, 0, TileType.Ground, t => t.Color = 1);
+            l.Add(EntityKind.Hero, 0, 0); l.Add(EntityKind.Crystal, 2, 0);
+            var plan = CoreRunBridge.ToPlan(Simulation.Run(l, "L R@1 R R@1"), new Vector2Int(0, 0));
+            T.Eq(4, plan.Count, "steps");
+            T.True(!plan[0].Moved && !plan[0].Skipped && plan[0].To == new Vector2Int(0, 0), "edge");
+            T.True(plan[1].Skipped, "skip");
+            T.True(plan[2].Moved && plan[2].To == new Vector2Int(1, 0), "move");
+            T.True(plan[3].Moved && plan[3].To == new Vector2Int(2, 0), "colored move");
+        });
+
         T.Run("random programs on real levels: core == old rules (step by step)", () =>
         {
             var rnd = new System.Random(12345);
