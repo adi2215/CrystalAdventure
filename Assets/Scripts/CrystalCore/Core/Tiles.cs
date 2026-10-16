@@ -48,6 +48,7 @@ namespace CrystalAdventure.Core
         public int Offset;          // сдвиг фазы для Spikes
         public int Durability = 1;  // для Crumbling: сколько раз можно наступить
         public int RespawnTurns = 3;// для VanishingCloud
+        public int Color;           // цвет клетки для условий карточек: 0 — нет, дальше как TileColor (1 Red, 2 Blue, 3 Yellow)
         public int Counter;         // внутренний счётчик (не задаётся в редакторе)
         public bool Gone;           // клетка исчезла (рассыпалась / облако пропало)
 
@@ -132,10 +133,16 @@ namespace CrystalAdventure.Core
         }
     }
 
+    /// <summary>
+    /// Гриб. При LevelRules.ClassicMushroom (по умолчанию) сам ничего не делает при входе —
+    /// прыжок на 2 клетки считает TurnResolver.MovePhase для того, кто СТОИТ на грибе.
+    /// Иначе — отскок на 2 клетки вперёд сразу при входе.
+    /// </summary>
     public sealed class BounceMushroomBehavior : GroundBehavior
     {
         public override void OnEnter(TurnContext ctx, Entity e, Cell c, TileState t, Dir d)
         {
+            if (ctx.World.Rules.ClassicMushroom) return;
             var landing = c.Step(d, 2);
             if (ctx.World.CanEnter(e, c, landing, ignoreHeight: true))
                 ctx.Relocate(e, landing, d, GameEventType.Bounced, ctx.Phase);

@@ -28,6 +28,11 @@ namespace CrystalAdventure.Core
     public sealed class ActionBlock : Block
     {
         public ActionType Action;
+        /// <summary>
+        /// Условие самой карточки (покрашенная карточка старой игры): если не выполнено,
+        /// действие пропускается и ход мира не тратится. null — выполняется всегда.
+        /// </summary>
+        public Condition Guard;
         public ActionBlock(ActionType a) { Action = a; }
     }
 
@@ -65,11 +70,23 @@ namespace CrystalAdventure.Core
         public List<Block> Main = new List<Block>();
         public Dictionary<string, List<Block>> Functions = new Dictionary<string, List<Block>>();
 
-        /// <summary>Сколько блоков поставил игрок — для звёзд.</summary>
-        public int CountBlocks() =>
-            Count(Main) + Functions.Values.Sum(Count) + Functions.Count;
+        /// <summary>
+        /// Считать ли объявление функции («def») отдельным блоком. В игре панель функции —
+        /// не карточка, и звёзды считаются по карточкам (MovingManager.CountCards), поэтому по умолчанию false.
+        /// </summary>
+        public bool CountFunctionDefs = false;
 
-        static int Count(IEnumerable<Block> blocks) => blocks.Sum(b => 1 + Count(b.Children));
+        /// <summary>
+        /// Сколько блоков поставил игрок — для звёзд.
+        ///
+        /// Исправлено: раньше каждая функция добавляла +1, даже пустая. Адаптер старого UI всегда
+        /// создаёт F1 и F2, поэтому любая программа из карточек считалась на 2 блока больше.
+        /// </summary>
+        public int CountBlocks() =>
+            Count(Main) + Functions.Values.Sum(Count) +
+            (CountFunctionDefs ? Functions.Values.Count(f => f != null && f.Count > 0) : 0);
+
+        static int Count(IEnumerable<Block> blocks) => blocks == null ? 0 : blocks.Sum(b => 1 + Count(b.Children));
 
         public Block Find(int id)
         {

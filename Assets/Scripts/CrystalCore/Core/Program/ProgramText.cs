@@ -17,6 +17,8 @@ namespace CrystalAdventure.Core
     ///           SP (spell), W (change wind), WAIT.
     /// Условия:  path enemy trap door ice wind crystal crystals enemies hplow,
     ///           «!» перед условием = «не».
+    /// Цвет:     «R@2» — карточка R срабатывает только на клетке цвета 2
+    ///           (1 Red, 2 Blue, 3 Yellow, как TileColor старой игры), иначе пропускается.
     /// </summary>
     public static class ProgramText
     {
@@ -74,6 +76,14 @@ namespace CrystalAdventure.Core
         {
             var tok = t[i++];
             if (Actions.TryGetValue(tok, out var a)) return new ActionBlock(a);
+
+            int at = tok.IndexOf('@');
+            if (at > 0 && Actions.TryGetValue(tok.Substring(0, at), out var guarded))
+            {
+                if (!int.TryParse(tok.Substring(at + 1), out var color) || color <= 0)
+                    throw new FormatException($"Bad color in '{tok}' (expected e.g. R@1)");
+                return new ActionBlock(guarded) { Guard = Condition.OnColor(color) };
+            }
 
             if (Eq(tok, "repeat"))
             {
@@ -146,7 +156,15 @@ namespace CrystalAdventure.Core
                 switch (b)
                 {
                     case ActionBlock a:
-                        foreach (var kv in Actions) if (kv.Value == a.Action) { sb.Append(kv.Key).Append(' '); break; }
+                        foreach (var kv in Actions)
+                            if (kv.Value == a.Action)
+                            {
+                                sb.Append(kv.Key);
+                                if (a.Guard != null && a.Guard.Type == ConditionType.TileColor && !a.Guard.Negate)
+                                    sb.Append('@').Append(a.Guard.Value);
+                                sb.Append(' ');
+                                break;
+                            }
                         break;
                     case RepeatBlock r: sb.Append("repeat ").Append(r.Count).Append(" { "); PrintList(sb, r.Body); sb.Append("} "); break;
                     case WhileBlock w: sb.Append("while ").Append(Cond(w.Condition)).Append(" { "); PrintList(sb, w.Body); sb.Append("} "); break;

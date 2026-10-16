@@ -12,6 +12,7 @@ namespace UnityEngine
         public static T Instantiate<T>(T original, Vector3 position, Quaternion rotation) where T : Object => original;
         public static void Destroy(Object obj, float t = 0f) { }
         public static implicit operator bool(Object o) => o != null;
+        public static T FindObjectOfType<T>() where T : Object => null;
     }
     public class Component : Object
     {
@@ -26,7 +27,7 @@ namespace UnityEngine
         public Coroutine StartCoroutine(IEnumerator routine) => null;
         public void StopAllCoroutines() { }
     }
-    public class ScriptableObject : Object { }
+    public class ScriptableObject : Object { public static T CreateInstance<T>() where T : ScriptableObject, new() => new T(); }
     public class GameObject : Object
     {
         public Transform transform;
@@ -60,7 +61,18 @@ namespace UnityEngine
         public static Vector3 Lerp(Vector3 a, Vector3 b, float t) => a + (b - a) * t;
     }
     public struct Vector3Int { public int x, y, z; public Vector3Int(int x, int y, int z) { this.x = x; this.y = y; this.z = z; } }
-    public struct Vector2Int { public int x, y; public Vector2Int(int x, int y) { this.x = x; this.y = y; } }
+    public struct Vector2Int : System.IEquatable<Vector2Int>
+    {
+        public int x, y;
+        public Vector2Int(int x, int y) { this.x = x; this.y = y; }
+        public static Vector2Int zero => new Vector2Int(0, 0);
+        public static bool operator ==(Vector2Int a, Vector2Int b) => a.x == b.x && a.y == b.y;
+        public static bool operator !=(Vector2Int a, Vector2Int b) => !(a == b);
+        public bool Equals(Vector2Int o) => this == o;
+        public override bool Equals(object o) => o is Vector2Int v && this == v;
+        public override int GetHashCode() => x * 31 + y;
+        public override string ToString() => $"({x}, {y})";
+    }
     public struct Quaternion
     {
         public static Quaternion identity => default;
@@ -84,6 +96,8 @@ namespace UnityEngine
         public static int Max(int a, int b) => a > b ? a : b;
         public static float Max(float a, float b) => a > b ? a : b;
         public static int Clamp(int v, int a, int b) => v < a ? a : v > b ? b : v;
+        public static float Sqrt(float f) => (float)System.Math.Sqrt(f);
+        public static int CeilToInt(float f) => (int)System.Math.Ceiling(f);
     }
     public static class Time { public static float deltaTime; }
     public static class Debug
@@ -110,6 +124,7 @@ namespace UnityEngine.Tilemaps
     public class Tilemap : Component
     {
         public Vector3 GetCellCenterWorld(Vector3Int c) => default;
+        public Vector3 GetCellCenterLocal(Vector3Int c) => default;
         public void SetTile(Vector3Int c, TileBase t) { }
     }
 }
@@ -130,5 +145,15 @@ namespace UnityEditor
         public static string[] FindAssets(string f) => new string[0];
         public static string GUIDToAssetPath(string g) => g;
         public static T LoadAssetAtPath<T>(string p) where T : UnityEngine.Object => null;
+        public static void CreateAsset(UnityEngine.Object o, string path) { }
+        public static bool IsValidFolder(string p) => true;
+        public static string CreateFolder(string parent, string name) => "";
+        public static void SaveAssets() { }
     }
+    public static class EditorUtility
+    {
+        public static bool DisplayDialog(string t, string m, string ok, string cancel = "") => true;
+        public static void SetDirty(UnityEngine.Object o) { }
+    }
+    public static class Undo { public static void RecordObject(UnityEngine.Object o, string n) { } }
 }

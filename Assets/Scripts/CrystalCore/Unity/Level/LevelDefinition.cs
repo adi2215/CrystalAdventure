@@ -7,8 +7,11 @@ namespace CrystalAdventure.UnityLayer
 {
     /// <summary>
     /// Описание уровня для нового ядра. Можно собирать из старого LevelSt
-    /// (клетки + грибы + кристаллы) и дополнять врагами, правилами и звёздами.
-    /// Create → Crystal Adventure → Level.
+    /// (клетки + грибы + кристаллы + цвета) и дополнять врагами, правилами и звёздами.
+    /// Create → Crystal Adventure → Level, или сразу для всех старых уровней:
+    /// Crystal Adventure → Ядро → Создать LevelDefinition из LevelSt.
+    ///
+    /// Исправлено: цвет клеток (условия покрашенных карточек) раньше терялся.
     /// </summary>
     [CreateAssetMenu(menuName = "Crystal Adventure/Level")]
     public class LevelDefinition : ScriptableObject
@@ -47,26 +50,8 @@ namespace CrystalAdventure.UnityLayer
                 ReferenceSolution = referenceSolution,
             };
 
-            if (legacyLevel != null && legacyLevel.tiles != null)
-            {
-                // Как в старом MapManager: на одну (x,y) берём самый высокий слой.
-                foreach (var group in legacyLevel.tiles.GroupBy(t => new Vector2Int(t.position.x, t.position.y)))
-                {
-                    var top = group.OrderByDescending(t => t.position.z).First();
-                    int x = top.position.x, y = top.position.y, h = top.position.z;
-
-                    var crystalTile = top.tile as CrystalTile;
-                    var spec = crystalTile != null ? crystalTile.ToSpec(x, y, h) : new TileSpec { X = x, Y = y, Height = h };
-
-                    foreach (var info in group)
-                    {
-                        if (info.superTileType == SuperBlocks.Mushroom) spec.Type = TileType.BounceMushroom;
-                        if (info.superTileType == SuperBlocks.Crystal)
-                            setup.Entities.Add(new EntitySpec { Kind = EntityKind.Crystal, X = x, Y = y, Archetype = "Crystal" });
-                    }
-                    setup.Tiles.Add(spec);
-                }
-            }
+            // Клетки, грибы, кристаллы и цвета старого уровня (тот же код, что у проверки совпадения).
+            LegacyLevelImport.AddTiles(setup, legacyLevel);
 
             foreach (var o in tileOverrides)
             {

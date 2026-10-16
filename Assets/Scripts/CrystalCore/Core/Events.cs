@@ -38,6 +38,7 @@ namespace CrystalAdventure.Core
         Frozen,         // клетки превратились в лёд
         Won,
         Lost,
+        Skipped,        // карточка с условием по цвету пропущена: герой стоит, ход мира не тратится
     }
 
     public sealed class GameEvent

@@ -16,6 +16,7 @@ namespace CrystalAdventure.Core
         public Dir Direction;
         public bool UseGlobalWind = true;
         public int Period = 2, Offset, Durability = 1, RespawnTurns = 3;
+        public int Color;             // 0 — без цвета; иначе как TileColor старой игры (1 Red, 2 Blue, 3 Yellow)
     }
 
     [Serializable]
@@ -48,6 +49,7 @@ namespace CrystalAdventure.Core
                 var tile = w.SetTile(new Cell(t.X, t.Y), t.Type, t.Height);
                 tile.Channel = t.Channel; tile.Direction = t.Direction; tile.UseGlobalWind = t.UseGlobalWind;
                 tile.Period = t.Period; tile.Offset = t.Offset; tile.Durability = t.Durability; tile.RespawnTurns = t.RespawnTurns;
+                tile.Color = t.Color;
             }
             // Герой первым — тогда у него Id = 1 и он всегда ходит первым в журнале.
             foreach (var e in Entities.OrderBy(x => x.Kind == EntityKind.Hero ? 0 : 1))
@@ -102,6 +104,8 @@ namespace CrystalAdventure.Core
         public ActionType Action;
         public int BlockId;              // какой блок программы подсветить
         public List<GameEvent> Events;
+        /// <summary>Карточка пропущена (условие по цвету не выполнено): мир не менялся, враги не ходили.</summary>
+        public bool Skipped;
     }
 
     public sealed class SimulationResult
@@ -115,6 +119,10 @@ namespace CrystalAdventure.Core
         public World Final;
 
         public bool Won => Outcome == Outcome.Won;
+
+        /// <summary>Сколько раз герой упёрся в край поля («чуть не упал») — для окна победы.</summary>
+        public int EdgeHits => Final == null || Final.Hero == null ? 0 :
+            Turns.SelectMany(t => t.Events).Count(e => e.Type == GameEventType.Bumped && e.EntityId == Final.Hero.Id && e.Info == TurnResolver.EdgeReason);
         public IEnumerable<GameEvent> AllEvents => InitialEvents.Concat(Turns.SelectMany(t => t.Events));
     }
 
@@ -142,13 +150,23 @@ namespace CrystalAdventure.Core
             {
                 if (IsWon(world)) { Finish(result, Outcome.Won, "Level complete", level); break; }
                 if (!world.Hero.Alive) { Finish(result, Outcome.Lost, "Hero defeated", level); break; }
-                if (world.Turn >= world.Rules.MaxTurns) { Finish(result, Outcome.TurnLimit, "Too many turns", level); break; }
+                // Считаем записи, а не world.Turn: пропущенные карточки ход мира не двигают,
+                // но бесконечная рекурсия из одних пропусков тоже должна остановиться.
+                if (result.Turns.Count >= world.Rules.MaxTurns) { Finish(result, Outcome.TurnLimit, "Too many turns", level); break; }
 
                 if (!runner.Next(world, out var action))
                 {
                     if (runner.Status == RunnerStatus.Error) Finish(result, Outcome.Error, runner.Error, level);
                     else Finish(result, Outcome.ProgramEnded, "Program ended before the goal", level);
                     break;
+                }
+
+                if (runner.Skipped)
+                {
+                    // Как в старой игре: карточка «гаснет», герой стоит, ход мира не тратится.
+                    var skip = new GameEvent(GameEventType.Skipped, EventPhase.Prepare) { EntityId = world.Hero.Id, Cell = world.Hero.Pos, Dir = world.Hero.Facing };
+                    result.Turns.Add(new TurnRecord { Turn = world.Turn, Action = action, BlockId = runner.CurrentBlockId, Events = new List<GameEvent> { skip }, Skipped = true });
+                    continue;
                 }
 
                 var events = TurnResolver.Resolve(world, action);

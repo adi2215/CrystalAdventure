@@ -136,7 +136,8 @@ namespace CrystalAdventure.UnityLayer
             {
                 case GameEventType.Moved:
                     _cells[e.EntityId] = e.To;
-                    if (v != null) yield return v.MoveTo(e.To, e.Dir, speed);
+                    // "jump" — прыжок с гриба / на гриб: выше и дольше, как старый CharacterCode.JumpToTile.
+                    if (v != null) yield return e.Info == "jump" ? v.MoveTo(e.To, e.Dir, speed, 3f, 1.6f) : v.MoveTo(e.To, e.Dir, speed);
                     break;
                 case GameEventType.Slid:
                     _cells[e.EntityId] = e.To;

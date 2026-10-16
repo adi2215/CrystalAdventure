@@ -13,6 +13,8 @@ namespace CrystalAdventure.Core
         public readonly List<GameEvent> Events = new List<GameEvent>();
         public readonly HashSet<int> TeleportedThisTurn = new HashSet<int>();
         public EventPhase Phase;
+        /// <summary>Где герой стоял в начале хода (для LevelRules.PickupOnArrival).</summary>
+        public Cell HeroStart;
 
         const int MaxRelocateDepth = 64; // защита от бесконечного льда / телепортов
         int _relocateDepth;

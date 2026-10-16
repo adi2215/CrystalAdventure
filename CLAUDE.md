@@ -12,7 +12,7 @@
 
 - **Unity 2022.3.5f1**, URP 14, новый Input System, 2D Tilemap (изометрия), TextMeshPro, Timeline.
 - Твины: **DOTween** (`Assets/Plugins/Demigiant`) и **LeanTween** (`Assets/LeanTween`). Это сторонний код, не трогать.
-- Сцены в Build Settings: `GameScenes/CollectorLevel` (индекс 0, основная), `GameScenes/Menu`, `LevelMove/FirstLevel`, `LevelMove/SecondLevel`, `LevelFunction/SceneFu`, `SceneFu 1`, `SceneWh`. Остальные сцены в `Assets/Scenes` — старые/экспериментальные (`BadApple` + `FunVideo/VideoToTilemap.cs` — пасхалка).
+- Сцены: в сборку включена только `GameScenes/CollectorLevel` (индекс 0). `Menu`, `FirstLevel`, `SecondLevel`, `SceneFu`, `SceneFu 1`, `SceneWh`, `BetaEnd`, `UpdateLevel`, `2Level` числятся в Build Settings, но выключены. Автор подтвердил: используется только `CollectorLevel`, прототипы не нужны и на новое ядро не переносятся. `Levelloader` всегда грузит сцену 0. Остальные сцены в `Assets/Scenes` — старые/экспериментальные (`BadApple` + `FunVideo/VideoToTilemap.cs` — пасхалка).
 - **Все уровни живут в одной сцене** `CollectorLevel`. Номер текущего уровня — в `Data.NextLevel`, сами уровни — ассеты `LevelSt` (`Assets/Scenes/GameScenes/Level*.asset`), загружает их `MapManager` / `TilemapData`.
 
 ## Архитектура: две системы
@@ -55,7 +55,14 @@
 
 ## Тесты ядра
 
-`CrystalCoreTests/` (вне `Assets`, Unity его не видит): `Tests.cs` — 42 консольных теста ядра, `Stubs/` — заглушки Unity и старых классов игры. Файл `.csproj` в репозиторий не попадает (`*.csproj` в `.gitignore`). Чтобы запустить, нужен .NET SDK и консольный проект, который включает `CrystalCoreTests/**/*.cs` и `Assets/Scripts/CrystalCore/Core/**/*.cs`. Любые изменения в `CrystalCore/Core` сопровождать тестом здесь.
+`CrystalCoreTests/` (вне `Assets`, Unity его не видит): `Tests.cs` — тесты ядра, `LegacyTests.cs` — старые правила и сверка с настоящими `Level*.asset` (эталонные решения + ~7000 случайных программ: ядро против `LegacyReplay`), `Stubs/` — заглушки Unity и старых классов игры (держать сигнатуры как в `Assets/Scripts`). Всего 75 тестов. Файл `.csproj` в репозиторий не попадает (`*.csproj` в `.gitignore`). Чтобы запустить, нужен .NET SDK 8 и консольный проект (`net8.0`, `LangVersion 9.0`, `EnableDefaultCompileItems=false`), который включает `CrystalCoreTests/**/*.cs` и **весь** `Assets/Scripts/CrystalCore/**/*.cs` (тесты используют и `Unity/`, и `Editor/` через заглушки). Любые изменения в `CrystalCore` сопровождать тестом здесь.
+
+## Перенос на новое ядро — состояние
+
+- **Решения автора:** гриб — старое поведение («встал на гриб → следующий шаг на 2 клетки, куда велит карточка»; `LevelRules.ClassicMushroom`, по умолчанию true). Сцены-прототипы не переносим.
+- **Фазы 1–2 сделаны:** ядро повторяет старые правила (цвет клетки → `ActionBlock.Guard` и пропуск без хода мира, край → `Bumped.Info = "edge"` и `SimulationResult.EdgeHits`, кристалл по приходу → `PickupOnArrival`, While со скобкой и повторами каждой карточки → `ItemProgramAdapter.FromMovingManager`, звёзды по карточкам без «def»). Импорт старых уровней — `Unity/Level/LegacyLevelImport`. Меню **Crystal Adventure → Ядро → Проверить совпадение со старой системой** и **→ Создать LevelDefinition из LevelSt** (`Editor/LegacyParityCheck`, эталон старых правил — `Editor/LegacyReplay`).
+- **Известное отличие:** в программах длиннее 300 шагов старый `MovingManager` молча выкидывал часть повторов цикла, ядро останавливается на 300-м ходу (`TurnLimit`).
+- **Дальше (Фаза 3):** `MovingManager` остаётся лицом UI, исполнение — через `CrystalGameController` под флагом; герой — старый куб (анимации `CharacterCode`), поле рисует `TilemapData`, звёзды сохраняет `FinishingLevel` (`saveStars = false`).
 
 ## Стиль кода
 
@@ -79,5 +86,5 @@
 
 - План переноса сцен со старой системы (`MovingManager` + `CharacterCode`) на `CrystalGameController`.
 - Единое имя помощницы (Эла / Luma).
-- Много старых сцен вне Build Settings (`SampleScene 1`, `3Level`…`5Level`, `BetaEnd`, `SceneFu 1`) — нужны ли они.
+- Сцены-прототипы не нужны (подтверждено) — можно ли удалить их файлы из проекта. `Menu` тоже выключена в сборке — так и задумано?
 - Проект тестов без `.csproj` в репозитории — добавить, например, `CrystalCoreTests/CrystalCoreTests.csproj` с исключением в `.gitignore`.

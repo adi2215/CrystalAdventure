@@ -33,6 +33,8 @@ namespace CrystalAdventure.Core
         public string Error { get; private set; }
         public int CurrentBlockId { get; private set; }
         public int ActionsExecuted { get; private set; }
+        /// <summary>Последний Next() вернул действие, условие которого не выполнено: его надо пропустить, а не играть.</summary>
+        public bool Skipped { get; private set; }
 
         public ProgramRunner(ProgramDef program)
         {
@@ -43,6 +45,7 @@ namespace CrystalAdventure.Core
         public bool Next(World world, out ActionType action)
         {
             action = ActionType.Wait;
+            Skipped = false;
             if (Status != RunnerStatus.Running) return false;
 
             for (int guard = 0; guard < MaxControlStepsPerAction; guard++)
@@ -64,7 +67,9 @@ namespace CrystalAdventure.Core
                     case ActionBlock a:
                         CurrentBlockId = a.Id;
                         action = a.Action;
-                        ActionsExecuted++;
+                        // Условие проверяется по миру ПЕРЕД этим действием (где герой стоит сейчас).
+                        Skipped = a.Guard != null && !a.Guard.Evaluate(world);
+                        if (!Skipped) ActionsExecuted++;
                         return true;
 
                     case RepeatBlock r:

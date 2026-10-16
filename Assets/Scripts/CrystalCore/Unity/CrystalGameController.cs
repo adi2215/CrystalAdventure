@@ -33,6 +33,8 @@ namespace CrystalAdventure.UnityLayer
 
         [Header("Старый UI карточек")]
         public MovingManager commandSource;
+        [Tooltip("Сохранять звёзды самому. Выключи, если окно победы — старый FinishingLevel: он сохраняет сам (с учётом подсказок и края), иначе запись будет двойной.")]
+        public bool saveStars = true;
 
         [Header("События для UI")]
         public SlotEvent onCardHighlight = new SlotEvent();
@@ -124,7 +126,8 @@ namespace CrystalAdventure.UnityLayer
         public void Play()
         {
             if (IsPlaying || _setup == null) return;
-            _program = ItemProgramAdapter.FromCommands(commandSource != null ? commandSource.Commands : null);
+            // С повторами, скобками циклов и цветами каждой карточки — как MovingManager.BuildQueue.
+            _program = ItemProgramAdapter.FromMovingManager(commandSource);
             Play(_program);
         }
 
@@ -147,7 +150,7 @@ namespace CrystalAdventure.UnityLayer
 
             if (LastResult.Won)
             {
-                if (data != null) SaveManager.SaveLevelResult(data.NextLevel, LastResult.Stars);
+                if (saveStars && data != null) SaveManager.SaveLevelResult(data.NextLevel, LastResult.Stars);
                 onWin.Invoke(LastResult.Stars);
             }
             else onLose.Invoke(LastResult.Message);

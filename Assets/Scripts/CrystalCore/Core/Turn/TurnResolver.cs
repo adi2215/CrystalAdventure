@@ -18,6 +18,9 @@ namespace CrystalAdventure.Core
     /// </summary>
     public static class TurnResolver
     {
+        /// <summary>Info у Bumped, когда впереди пустота (нет клетки или она исчезла): «чуть не упал».</summary>
+        public const string EdgeReason = "edge";
+
         public static Intent HeroIntent(Entity hero, ActionType a)
         {
             switch (a)
@@ -45,6 +48,7 @@ namespace CrystalAdventure.Core
         {
             var ctx = new TurnContext(w);
             var hero = w.Hero;
+            ctx.HeroStart = hero.Pos;
             w.Turn++;
 
             // Все намерения фиксируются ДО каких-либо изменений мира.
@@ -217,7 +221,13 @@ namespace CrystalAdventure.Core
 
         // ------------------------------------------------------------------ 2. Move (одновременно)
 
-        sealed class Mover { public Entity E; public Cell From; public Cell To; public Dir Dir; public bool Failed; public string Why; }
+        sealed class Mover { public Entity E; public Cell From; public Cell To; public Dir Dir; public bool Failed; public string Why; public bool Jump; }
+
+        static bool IsMushroom(World w, Cell c)
+        {
+            var t = w.GetTile(c);
+            return t != null && !t.Gone && t.Type == TileType.BounceMushroom;
+        }
 
         static void MovePhase(TurnContext ctx, List<KeyValuePair<Entity, Intent>> intents)
         {
@@ -230,8 +240,15 @@ namespace CrystalAdventure.Core
                 var e = kv.Key;
                 if (!e.Alive || kv.Value.Kind != IntentKind.Move) continue;
                 e.Facing = kv.Value.Dir; // смотрит туда, куда пытался идти — даже если упёрся
-                var m = new Mover { E = e, From = e.Pos, Dir = kv.Value.Dir, To = e.Pos.Step(kv.Value.Dir) };
-                if (!w.CanStep(m.From, m.To)) { m.Failed = true; m.Why = "blocked"; }
+                // Классический гриб: стоишь на грибе — шаг на 2 клетки (промежуточная клетка не нужна).
+                bool jump = w.Rules.ClassicMushroom && IsMushroom(w, e.Pos);
+                var m = new Mover { E = e, From = e.Pos, Dir = kv.Value.Dir, To = e.Pos.Step(kv.Value.Dir, jump ? 2 : 1), Jump = jump };
+                if (!w.CanStep(m.From, m.To))
+                {
+                    m.Failed = true;
+                    var target = w.GetTile(m.To);
+                    m.Why = target == null || target.Gone ? EdgeReason : "blocked";
+                }
                 movers.Add(m);
             }
 
@@ -271,7 +288,9 @@ namespace CrystalAdventure.Core
                     continue;
                 }
                 m.E.Pos = m.To;
-                ctx.Emit(new GameEvent(GameEventType.Moved, EventPhase.Move) { EntityId = m.E.Id, Cell = m.From, To = m.To, Dir = m.Dir });
+                // Info = "jump": прыжок с гриба или на гриб — View рисует дугу, как старый CharacterCode.JumpToTile.
+                bool jumpAnim = m.Jump || (w.Rules.ClassicMushroom && IsMushroom(w, m.To));
+                ctx.Emit(new GameEvent(GameEventType.Moved, EventPhase.Move) { EntityId = m.E.Id, Cell = m.From, To = m.To, Dir = m.Dir, Info = jumpAnim ? "jump" : null });
             }
 
             // Эффекты клеток: сначала «ушёл», потом «пришёл».
@@ -379,7 +398,9 @@ namespace CrystalAdventure.Core
                 foreach (var m in w.Hostiles.ToList()) ctx.Kill(m, ctx.Phase, "boss_down");
             }
 
-            if (w.Rules.AutoPickupCrystals && w.Hero.Alive)
+            // PickupOnArrival: как в старой игре — кристалл берётся, только если герой в этом ходу пришёл на клетку.
+            bool arrived = !w.Rules.PickupOnArrival || w.Hero.Pos != ctx.HeroStart;
+            if (w.Rules.AutoPickupCrystals && w.Hero.Alive && arrived)
             {
                 var c = w.CrystalAt(w.Hero.Pos);
                 if (c != null)

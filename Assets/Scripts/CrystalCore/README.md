@@ -20,7 +20,7 @@ LevelDefinition ──► LevelSetup ──► Simulation.Run ──► Simulati
 | `Core/` | Правила игры: сетка, тайлы, враги, боссы, интерпретатор, ход | **Нет** (asmdef `noEngineReferences`) |
 | `Unity/` | Уровни (ScriptableObject), проигрывание, визуал, мост к старому UI | Да |
 | `Editor/` | Меню *Crystal Adventure → Validate All Levels* | Да (только редактор) |
-| `../../../CrystalCoreTests/` | 42 автотеста ядра (`dotnet run`) | Нет |
+| `../../../CrystalCoreTests/` | 75 автотестов: ядро + сверка со старыми уровнями (`dotnet run`) | Нет |
 
 ## Как устроен ход (одновременно)
 1. **Prepare** — повороты, щит, Interact / Spell / Break Ice / Change Wind, призывы босса
@@ -31,11 +31,24 @@ LevelDefinition ──► LevelSetup ──► Simulation.Run ──► Simulati
 6. **Resolve** — падения, подбор кристаллов
 7. **Plan** — враги решают следующий ход → игрок видит красные клетки и стрелки ещё до запуска
 
+## Старые правила (уровни из LevelSt)
+Ядро повторяет механику, которая сейчас в игре (`MovingManager` + `CharacterCode` + `WayTiles`):
+- **Гриб:** стоишь на грибе → следующий шаг на 2 клетки, туда, куда велит карточка (`LevelRules.ClassicMushroom`, по умолчанию). `false` — новый вариант «отскок сразу при входе».
+- **Цветные клетки:** покрашенная карточка → `ActionBlock.Guard` (`Condition.OnColor`). Не тот цвет — карточка пропускается, ход мира не тратится (`TurnRecord.Skipped`, событие `Skipped`). В тексте: `R@1`.
+- **Край:** шаг в пустоту — `Bumped` с `Info = "edge"`, счётчик `SimulationResult.EdgeHits`.
+- **Кристалл** берётся, когда герой пришёл на клетку (`LevelRules.PickupOnArrival`).
+- **While** со скобкой и своим числом повторов у каждой карточки — `ItemProgramAdapter.FromMovingManager`.
+- **Звёзды** по карточкам: панель функции — не карточка (`ProgramDef.CountFunctionDefs = false`).
+
+Проверка без Play Mode: **Crystal Adventure → Ядро → Проверить совпадение со старой системой**
+(эталонное решение каждого уровня через ядро и через `LegacyReplay` — эталон старых правил).
+**→ Создать LevelDefinition из LevelSt** — ассеты в `Assets/Scenes/GameScenes/CoreLevels` (старт, правила, оптимум, решение).
+
 ## Подключение в сцене (≈20 минут)
 1. Unity сам скомпилирует папку. Старые скрипты не тронуты.
 2. **Create → Crystal Adventure → Entity Prefabs**: укажи префабы героя / кристалла / врагов.
    На каждый префаб добавь компонент `EntityView` (SpriteRenderer подхватится сам).
-3. **Create → Crystal Adventure → Level** для каждого уровня: `legacyLevel` = старый `LevelSt`,
+3. **Crystal Adventure → Ядро → Создать LevelDefinition из LevelSt** (или вручную **Create → Crystal Adventure → Level**): `legacyLevel` = старый `LevelSt`,
    `heroCell` = клетка старта, враги в `entities` (Archetype: `SmallBallScout`, `ForestDrone`,
    `TrainingDummy`, `FrostTurret`, `HeavyIceGuard`, `WoodMechGuardian`…), звёзды и `referenceSolution`.
 4. На сцене создай объект `CrystalGame` и добавь: `CrystalGameController`, `TurnPlayer`, `GridMapper`
