@@ -6,7 +6,7 @@ using System.Linq;
 
 public class MouseController : MonoBehaviour
 {
-    public GameObject characterPrefab;
+   /* public GameObject characterPrefab;
     public CharacterCode character;
     public GameObject characterContainer;
 
@@ -87,5 +87,5 @@ public class MouseController : MonoBehaviour
         character.transform.position = new Vector3(tile.transform.position.x, tile.transform.position.y, tile.transform.position.z + 0.001f);
         character.GetComponent<SpriteRenderer>().sortingOrder = tile.GetComponent<SpriteRenderer>().sortingOrder;
         character.activeTile = tile;
-    }
+    }*/
 }

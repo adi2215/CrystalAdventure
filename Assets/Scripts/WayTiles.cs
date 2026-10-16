@@ -1,195 +1,62 @@
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using UnityEngine;
 
+/// <summary>
+/// Куда пойдёт куб по одной команде. Чистая функция: ничего не меняет,
+/// не трогает списки команд (раньше удаляла команду из MovingManager — это ломало Rewind).
+/// </summary>
 public class WayTiles
 {
-    public List<OverlayTile> saveTiles = new List<OverlayTile>();
-
-    public List<OverlayTile> FindWays(OverlayTile start, MovingManager list)
+    public struct Step
     {
-        List<OverlayTile> openList = new List<OverlayTile>();
-        //List<OverlayTile> closedList = new List<OverlayTile>();
-
-        openList.Add(start);
-        int lists = list.Commands[SlotType.Main].Count;
-
-        for (int i = 0; i < lists; i++)
-        {
-            OverlayTile currentOverlayTile = openList.First();
-            string currentword = list.Commands[SlotType.Main][0].type.ToString();
-
-            openList.Remove(currentOverlayTile);
-            list.Commands[SlotType.Main].RemoveAt(0);
-            //closedList.Add(currentOverlayTile);
-    
-            if(list.Commands[SlotType.Main].Count == 0)
-            {
-                return GetFinishedList(currentOverlayTile, currentword);
-            }
-
-            var neighbourTiles = GetNeighbourTiles(currentOverlayTile, currentword);
-
-            foreach (var neighbour in neighbourTiles)
-            {
-                openList.Add(neighbour);
-                saveTiles.Add(neighbour);
-            }
-        }
-
-        return new List<OverlayTile>();
+        public OverlayTile target;   // null = идти некуда (край карты) — куб стоит
+        public bool fromMushroom;    // прыжок с гриба на 2 клетки
+        public bool onMushroom;      // запрыгиваем НА гриб
     }
 
-    private List<OverlayTile> GetFinishedList(OverlayTile end, string word)
+    public static Step Resolve(OverlayTile start, Item cmd, Dictionary<Vector3Int, OverlayTile> map) =>
+        cmd == null ? new Step() : Resolve(start, cmd.type, map);
+
+    public static Step Resolve(OverlayTile start, ItemType type, Dictionary<Vector3Int, OverlayTile> map)
     {
-        OverlayTile currentTile = end;
+        var step = new Step();
+        if (start == null || map == null) return step;
 
-        var neighbourTiles = GetNeighbourTiles(currentTile, word);
+        Vector3Int dir = Direction(type);
+        if (dir == Vector3Int.zero) return step;
 
-        foreach (var neighbour in neighbourTiles)
+        bool standingOnMushroom = IsMushroom(start);
+        int distance = standingOnMushroom ? 2 : 1;
+
+        // Ключи в MapManager.map — (x, y, 0). gridLocation хранит ещё и слой z,
+        // поэтому его нельзя подставлять напрямую (раньше на высоких клетках куб не мог ходить).
+        var key = new Vector3Int(start.gridLocation.x + dir.x * distance, start.gridLocation.y + dir.y * distance, 0);
+
+        if (map.TryGetValue(key, out var tile) && tile != null)
         {
-            saveTiles.Add(neighbour);
+            step.target = tile;
+            step.fromMushroom = standingOnMushroom;
+            step.onMushroom = IsMushroom(tile);
         }
-
-        return saveTiles;
+        return step;
     }
 
-    private List<OverlayTile> GetNeighbourTiles(OverlayTile currenOverlayTile, string move)
+    public static bool IsMushroom(OverlayTile tile)
     {
-        var map = MapManager.Instance.map;
+        if (tile == null) return false;
+        if (tile.block == SuperBlocks.Mushroom) return true;
+        return tile.attachedObject != null && tile.attachedObject.TryGetComponent<MushroomObj>(out _);
+    }
 
-        List<OverlayTile> neighbours = new List<OverlayTile>();
-
-        switch (move)
+    public static Vector3Int Direction(ItemType type)
+    {
+        switch (type)
         {
-            case "Forward":
-                Vector2Int locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y + 1);
-                Vector2Int currentLocation = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y);
-
-                if (map.ContainsKey(locationToCheck))
-                {
-                    neighbours.Add(map[locationToCheck]);
-                }
-                else
-                {
-                    neighbours.Add(map[currentLocation]);
-                }
-                break;
-
-            case "Right":
-                locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x + 1, currenOverlayTile.gridLocation.y);
-                currentLocation = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y);
-
-                if (map.ContainsKey(locationToCheck))
-                {
-                    neighbours.Add(map[locationToCheck]);
-                }
-                else
-                {
-                    neighbours.Add(map[currentLocation]);
-                }
-                break;
-
-            case "Left":
-                locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x - 1, currenOverlayTile.gridLocation.y);
-                currentLocation = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y);
-
-                if (map.ContainsKey(locationToCheck))
-                {
-                    neighbours.Add(map[locationToCheck]);
-                }
-                else
-                {
-                    neighbours.Add(map[currentLocation]);
-                }
-                break;
-
-            case "Bottom":
-                locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y - 1);
-                currentLocation = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y);
-
-                if (map.ContainsKey(locationToCheck))
-                {
-                    neighbours.Add(map[locationToCheck]);
-                }
-                else
-                {
-                    neighbours.Add(map[currentLocation]);
-                }
-                break;
-
-            case null:
-                locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y);
-                neighbours.Add(map[locationToCheck]);
-            
-                break;
-            
-            case "Attack":
-                locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y);
-                neighbours.Add(map[locationToCheck]);
-            
-                break;
+            case ItemType.Forward: return new Vector3Int(0, +1, 0);
+            case ItemType.Right: return new Vector3Int(+1, 0, 0);
+            case ItemType.Left: return new Vector3Int(-1, 0, 0);
+            case ItemType.Bottom: return new Vector3Int(0, -1, 0);
+            default: return Vector3Int.zero;
         }
-
-        /*if (move == "Forward")
-        {
-            Vector2Int locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y + 1);
-
-            if (map.ContainsKey(locationToCheck))
-            {
-                neighbours.Add(map[locationToCheck]);
-            }
-        }
-        
-        else if (move == "Right")
-        {
-            Vector2Int locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x + 1, currenOverlayTile.gridLocation.y);
-
-            if (map.ContainsKey(locationToCheck))
-            {
-                neighbours.Add(map[locationToCheck]);
-            }
-        }
-
-        else if (move == "Left")
-        {
-            Vector2Int locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x - 1, currenOverlayTile.gridLocation.y);
-
-            if (map.ContainsKey(locationToCheck))
-            {
-                neighbours.Add(map[locationToCheck]);
-            }
-        }
-
-        else if (move == "Bottom")
-        {
-            Vector2Int locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y - 1);
-
-            if (map.ContainsKey(locationToCheck))
-            {
-                neighbours.Add(map[locationToCheck]);
-            }
-        }
-
-        else if (move == "Attack")
-        {
-            Vector2Int locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y);
-
-            if (map.ContainsKey(locationToCheck))
-            {
-                neighbours.Add(map[locationToCheck]);
-            }
-        }
-
-        //Bottom
-        locationToCheck = new Vector2Int(currenOverlayTile.gridLocation.x, currenOverlayTile.gridLocation.y - 1);
-
-        if (map.ContainsKey(locationToCheck))
-        {
-            neighbours.Add(map[locationToCheck]);
-        }*/
-        
-        return neighbours;
     }
 }

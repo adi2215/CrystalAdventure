@@ -15,26 +15,35 @@ MonoBehaviour:
   tiles:
   - position: {x: 0, y: 0, z: 0}
     tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    superTileType: 0
   - position: {x: 1, y: 0, z: 0}
     tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 0
   - position: {x: 2, y: 0, z: 0}
     tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 0
   - position: {x: 3, y: 0, z: 0}
     tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 0
   - position: {x: 1, y: 1, z: 0}
     tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
+    superTileType: 0
   - position: {x: 3, y: 1, z: 0}
     tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
+    superTileType: 0
   - position: {x: 1, y: 2, z: 0}
     tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
+    superTileType: 0
   - position: {x: 2, y: 2, z: 0}
     tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 0
   - position: {x: 3, y: 2, z: 0}
     tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 0
   - position: {x: 4, y: 2, z: 0}
     tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 2
   characterPos: {x: 0, y: -1.4199998, z: 1.001}
-  crystalPos: {x: 0.32, y: -0.93999994, z: 1.001}
   panels:
   - panelName: Main
     commands:
@@ -43,3 +52,19 @@ MonoBehaviour:
     - {fileID: 11400000, guid: a36b4ddd499e17b45a04f767ed85509c, type: 2}
     - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
   dialog: {fileID: 0}
+  optimalCards: 6
+  solutionMain:
+  - type: 2
+    iterations: 1
+  - type: 0
+    iterations: 1
+  - type: 0
+    iterations: 1
+  - type: 2
+    iterations: 1
+  - type: 2
+    iterations: 1
+  - type: 2
+    iterations: 1
+  solutionF1: []
+  solutionF2: []

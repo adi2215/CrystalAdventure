@@ -3,101 +3,112 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
-
+/// <summary>
+/// Строит карту уровня: загружает Tilemap из LevelSt, создаёт overlay-клетки и
+/// «падающие» блоки вступления.
+///
+/// Исправлено: Debug.Log в тройном цикле по всем ячейкам (сильно тормозил загрузку)
+/// и в Update; жёстко зашитое «% 8» уровней; падение, если на клетке не Tile.
+/// </summary>
 public class MapManager : MonoBehaviour
 {
     private static MapManager _instance;
-
-    public static MapManager Instance { get {return _instance; } }
+    public static MapManager Instance => _instance;
 
     public OverlayTile overlayTilePrefab;
-
     public GameObject overlayContainer;
 
-    public Dictionary<Vector2Int, OverlayTile> map;
+    public Dictionary<Vector3Int, OverlayTile> map;
 
     public Tilemap tilemap;
 
-    List<Vector3Int> Tiles = new List<Vector3Int>();
+    private readonly List<Vector3Int> Tiles = new();
+    private readonly List<GameObject> Obj = new();
 
     private bool MoveBlock = true;
 
     public GameObject objectPrefab;
-
     public GameObject Objec;
-
-    List<GameObject> Obj = new List<GameObject>();
 
     [SerializeField] private AnimationCurve curve;
 
-    [SerializeField] private Animator anim;
-
-    private float _current, _target;
-
     public Data data;
-    
+
+    [Tooltip("Через сколько секунд после старта анимации блоков куб может падать на поле")]
+    public float mapIntroTime = 1f;
 
     private void Awake()
     {
         if (_instance != null && _instance != this)
         {
-            Destroy(this.gameObject);
+            Destroy(gameObject);
+            return;
         }
+        _instance = this;
+    }
 
-        else
-        {
-            _instance = this;
-        }
+    private void OnDestroy()
+    {
+        if (_instance == this) _instance = null;
     }
 
     private void Start()
     {
-        data.FallingCrystal = true;
         data.FallingCube = true;
         data.FallingMap = true;
         TileAppears();
     }
-    
+
     public void TileAppears()
     {
-        var TileMap = gameObject.GetComponentInChildren<Tilemap>();
-        TilemapData tileLoad = TileMap.GetComponent<TilemapData>();
-        tileLoad.LoadTilemapFromData(data.NextLevel % 6);
+        var tileMap = GetComponentInChildren<Tilemap>();
+        var tileLoad = tileMap.GetComponent<TilemapData>();
 
-        map = new Dictionary<Vector2Int, OverlayTile>();
-        BoundsInt bounds = TileMap.cellBounds;
-        Debug.Log(bounds);
+        int levelCount = tileLoad.tilemapData != null ? tileLoad.tilemapData.Length : 0;
+        if (levelCount == 0)
+        {
+            Debug.LogError("[MapManager] В TilemapData нет уровней");
+            return;
+        }
+        // Номер уровня по кругу, как раньше (% 8), но по реальному числу уровней.
+        int levelIndex = ((data.NextLevel % levelCount) + levelCount) % levelCount;
+        tileLoad.LoadTilemapFromData(levelIndex);
 
+        map = new Dictionary<Vector3Int, OverlayTile>();
+        Tiles.Clear();
+        Obj.Clear();
+
+        var renderer = tileMap.GetComponent<TilemapRenderer>();
+        int sortingOrder = renderer != null ? renderer.sortingOrder : 0;
+        BoundsInt bounds = tileMap.cellBounds;
+
+        // Сверху вниз по слоям: на одну (x, y) берём самый верхний блок.
         for (int z = bounds.max.z; z >= bounds.min.z; z--)
         {
             for (int y = bounds.min.y; y < bounds.max.y; y++)
             {
                 for (int x = bounds.min.x; x < bounds.max.x; x++)
                 {
-                    var TileLocation = new Vector3Int(x, y, z); 
-                    var tileKey = new Vector2Int(x, y);
+                    var tileLocation = new Vector3Int(x, y, z);
+                    var tileKey = new Vector3Int(x, y, 0);
+                    if (map.ContainsKey(tileKey) || !tileMap.HasTile(tileLocation)) continue;
 
-                    Debug.Log($"Anchor of Tilemap: {TileMap.HasTile(TileLocation)}, {TileLocation}");
+                    var tile = tileMap.GetTile<Tile>(tileLocation);
+                    var cellWorldPosition = tileMap.GetCellCenterWorld(tileLocation);
 
-                    if (TileMap.HasTile(TileLocation) && !map.ContainsKey(tileKey))
-                    {
-                        Debug.Log("feg");
-                        // ADD array
-                        Tiles.Add(TileLocation);
-                        var ovarlayTile = Instantiate(overlayTilePrefab, overlayContainer.transform);
-                        var blocks = Instantiate(objectPrefab, Objec.transform);
-                        var cellWorldPosition = TileMap.GetCellCenterWorld(TileLocation);
-                        
-                        ovarlayTile.transform.position = new Vector3(cellWorldPosition.x, cellWorldPosition.y + (float)0.12, cellWorldPosition.z+1);
-                        blocks.transform.position = new Vector3(cellWorldPosition.x, cellWorldPosition.y - 2, cellWorldPosition.z+1);
-                        ovarlayTile.GetComponent<SpriteRenderer>().sortingOrder = TileMap.GetComponent<TilemapRenderer>().sortingOrder;
-                        ovarlayTile.typeSprite = TileMap.GetTile<Tile>(TileLocation).sprite.name;
-                        blocks.GetComponent<SpriteRenderer>().sortingOrder = TileMap.GetComponent<TilemapRenderer>().sortingOrder;
-                        ovarlayTile.gridLocation = TileLocation;
-                        Obj.Add(blocks);
-                        map.Add(tileKey, ovarlayTile);
-                    }
+                    var overlayTile = Instantiate(overlayTilePrefab, overlayContainer.transform);
+                    overlayTile.transform.position = new Vector3(cellWorldPosition.x, cellWorldPosition.y + 0.12f, cellWorldPosition.z + 1);
+                    overlayTile.GetComponent<SpriteRenderer>().sortingOrder = sortingOrder;
+                    overlayTile.typeSprite = tile != null && tile.sprite != null ? tile.sprite.name : "";
+                    overlayTile.gridLocation = tileLocation;
 
+                    var block = Instantiate(objectPrefab, Objec.transform);
+                    block.transform.position = new Vector3(cellWorldPosition.x, cellWorldPosition.y - 2, cellWorldPosition.z + 1);
+                    block.GetComponent<SpriteRenderer>().sortingOrder = sortingOrder;
+
+                    Tiles.Add(tileLocation);
+                    Obj.Add(block);
+                    map.Add(tileKey, overlayTile);
                 }
             }
         }
@@ -107,31 +118,37 @@ public class MapManager : MonoBehaviour
 
     void Update()
     {
-        if (MoveBlock)
-            return;
+        if (MoveBlock) return;
+        MoveBlock = true; // один раз запускаем анимацию блоков
 
         for (int i = 0; i < Tiles.Count; i++)
         {
-            Tile currentTile = tilemap.GetTile<Tile>(Tiles[i]);
-            Vector3 cellPosition = tilemap.GetCellCenterWorld(Tiles[i]);
-            Obj[i].GetComponent<SpriteRenderer>().sprite = currentTile.sprite;
-            if (currentTile.sprite.name == "CloudsTileMap_0" || currentTile.sprite.name == "EmptyTile")
+            var currentTile = tilemap.GetTile<Tile>(Tiles[i]);
+            var sr = Obj[i].GetComponent<SpriteRenderer>();
+            if (currentTile != null)
             {
-                Obj[i].GetComponent<SpriteRenderer>().color = new Color(0, 0, 0, 0);
+                sr.sprite = currentTile.sprite;
+                if (currentTile.sprite != null &&
+                    (currentTile.sprite.name == "CloudsTileMap_0" || currentTile.sprite.name == "EmptyTile"))
+                    sr.color = new Color(0, 0, 0, 0);
             }
-            Obj[i].GetComponent<Sine>().FunctionPos(MoveBlock, cellPosition, i);
-            Debug.Log("LOL");
+            // Цветная клетка (условия): красим сам видимый блок — Tilemap под ним не виден.
+            var tileColor = ColorTiles.At(Tiles[i].x, Tiles[i].y);
+            if (tileColor != TileColor.None && sr.color.a > 0f) ColorTilePulse.Attach(sr, tileColor);
+
+            var sine = Obj[i].GetComponent<Sine>();
+            if (sine != null) sine.FunctionPos(false, tilemap.GetCellCenterWorld(Tiles[i]), i);
         }
-        Debug.Log("NUB");
+
+        // Свет (материал с нормалями), камни под островом, тени, летающие обломки.
+        IslandDecor.Build(Tiles, Obj, tilemap, transform.root);
 
         StartCoroutine(StartMove());
     }
 
     private IEnumerator StartMove()
     {
-        MoveBlock = true;
-        yield return new WaitForSeconds(1f);
+        yield return new WaitForSeconds(mapIntroTime);
         data.FallingMap = false;
     }
 }
-

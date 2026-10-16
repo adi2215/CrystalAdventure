@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb67a6950aaf40a69b35490170036590, type: 3}
+  m_Name: Tutorial_Basics
+  m_EditorClassIdentifier: 
+  speakerName: Ela
+  portrait: {fileID: 21300000, guid: dc1463edfe8eb304a92a7c222c9d1b7f, type: 3}
+  steps:
+  - text: "Hi, I'm Ela! See that shiny crystal? Let's help Cris get it!"
+    target: 2
+    card: 0
+    slot: 0
+    wait: 0
+    count: 1
+    dim: 1
+  - text: "Cris only moves by commands. We build his program right here."
+    target: 4
+    card: 0
+    slot: 0
+    wait: 0
+    count: 1
+    dim: 1
+  - text: "Tap the arrow card to add one step forward."
+    target: 3
+    card: 0
+    slot: 0
+    wait: 1
+    count: 1
+    dim: 1
+  - text: "Great, the card is in the program! Now press Play."
+    target: 6
+    card: 0
+    slot: 0
+    wait: 3
+    count: 1
+    dim: 1

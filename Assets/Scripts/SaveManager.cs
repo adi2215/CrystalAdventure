@@ -8,23 +8,36 @@ public static class SaveManager
 
     public static LevelSaveDatabase Load()
     {
-        if (File.Exists(savePath))
+        try
         {
-            Debug.Log("Load path: " + Application.persistentDataPath);
-            string json = File.ReadAllText(savePath);
-            return JsonUtility.FromJson<LevelSaveDatabase>(json);
+            if (File.Exists(savePath))
+            {
+                var db = JsonUtility.FromJson<LevelSaveDatabase>(File.ReadAllText(savePath));
+                if (db != null && db.levels != null) return db;
+            }
         }
-        else
+        catch (System.Exception e)
         {
-            Debug.Log("File not found, creating new db at: " + Application.persistentDataPath);
-            return new LevelSaveDatabase();
+            // Повреждённый файл сохранения не должен ронять игру.
+            Debug.LogWarning("[SaveManager] Не удалось прочитать сохранение: " + e.Message);
         }
+        return new LevelSaveDatabase();
     }
 
     public static void Save(LevelSaveDatabase db)
     {
-        string json = JsonUtility.ToJson(db, true);
-        File.WriteAllText(savePath, json);
+        try
+        {
+            // Пишем во временный файл и подменяем — при вылете посреди записи сохранение не обнулится.
+            string tmp = savePath + ".tmp";
+            File.WriteAllText(tmp, JsonUtility.ToJson(db, true));
+            if (File.Exists(savePath)) File.Delete(savePath);
+            File.Move(tmp, savePath);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[SaveManager] Не удалось сохранить: " + e.Message);
+        }
     }
 
     public static void SaveLevelResult(int levelNumber, int starsEarned)

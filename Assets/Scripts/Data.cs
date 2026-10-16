@@ -21,8 +21,6 @@ public class Data : ScriptableObject
 
     public bool RemoveBool = false;
 
-    public bool FallingCrystal = true;
-
     public bool FallingCube = true;
 
     public bool FallingMap = true;

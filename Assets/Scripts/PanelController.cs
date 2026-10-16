@@ -16,35 +16,30 @@ public class PanelController : MonoBehaviour
 
     public void CheckPanels(Panels[] panels)
     {
-        for (int i = buttonPanels.Length - 1; i >= panels.Length; i--)
-        {
-            buttonPanels[i].SetActive(false);
-        }
-
+        panels ??= new Panels[0];
         numberOfPanels = panels.Length;
         initialPositions = new Vector3[buttonPanels.Length];
         isMoved = new bool[buttonPanels.Length];
 
-        for (int i = 0; i < numberOfPanels; i++)
+        // Раньше при panels.Length > spawnMethods.Length было IndexOutOfRange.
+        int n = Mathf.Min(numberOfPanels, spawnMethods.Length, buttonPanels.Length);
+        for (int i = 0; i < n; i++)
         {
-            Debug.Log("23423efe");
-            spawnMethods[i].CheckItems(panels[i].commands);
-            initialPositions[i] = buttonPanels[i].transform.localPosition;
-            isMoved[i] = false; 
+            if (spawnMethods[i] != null) spawnMethods[i].CheckItems(panels[i]?.commands);
+            if (buttonPanels[i] != null) initialPositions[i] = buttonPanels[i].transform.localPosition;
+            isMoved[i] = false;
         }
-
-        AnimateButtons(0);
     }
 
     public void ChoosePanel(GameObject selectedPanel)
     {
         foreach (GameObject panel in panels)
         {
-            panel.SetActive(panel == selectedPanel); 
+            if (panel != null) panel.SetActive(panel == selectedPanel);
         }
     }
 
-    public void AnimateButtons(int selectedButtonIndex)
+    /*public void AnimateButtons(int selectedButtonIndex)
     {
         for (int i = 0; i < numberOfPanels; i++)
         {
@@ -71,5 +66,5 @@ public class PanelController : MonoBehaviour
                 isMoved[i] = false;
             }
         }
-    }
+    }*/
 }

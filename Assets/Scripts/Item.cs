@@ -19,5 +19,6 @@ public enum ItemType {
     FunctionOne,
     FunctionTwo,
     While,
-    Ifandelse
+    Ifandelse, 
+    Null
 }

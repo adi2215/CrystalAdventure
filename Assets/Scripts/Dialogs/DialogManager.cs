@@ -1,10 +1,14 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
-using TMPro;
 using UnityEngine.InputSystem;
 
+/// <summary>
+/// Диалоги перед уровнем. Пока диалог открыт, Play не запускается (MovingManager проверяет data.DialogManager).
+///
+/// Исправлено: флаг data.DialogManager живёт в ассете Data и оставался true, если остановить игру
+/// посреди диалога в редакторе — теперь сбрасывается при старте; пустой диалог / неверный actorId
+/// больше не роняют игру; быстрые клики не наслаивают анимации окна.
+/// </summary>
 public class DialogManager : MonoBehaviour
 {
     public Image actorImage;
@@ -18,19 +22,19 @@ public class DialogManager : MonoBehaviour
     private Message[] currentMessages;
     private Actor[] currentActors;
     private int activeMessage = 0;
-    private DialogTrigger current_dialog;
 
     private PlayerInputActions inputActions;
 
     void Awake()
     {
         inputActions = new PlayerInputActions();
+        if (data != null) data.DialogManager = false;
+        if (backGroundBox != null) backGroundBox.localScale = Vector3.zero;
     }
 
     void OnEnable()
     {
         inputActions.ActionManager.Enable();
-        Debug.Log("dialogue enabled");
         inputActions.ActionManager.SkipDialog.performed += OnNext;
     }
 
@@ -40,59 +44,68 @@ public class DialogManager : MonoBehaviour
         inputActions.ActionManager.Disable();
     }
 
+    void OnDestroy()
+    {
+        inputActions?.Dispose();
+    }
+
     private void OnNext(InputAction.CallbackContext context)
     {
-        Debug.Log("Dialogfgg33333");
-        if (data.DialogManager == true)
-            NextMessage();
+        if (isActive) NextMessage();
     }
 
     public void OpenDialogue(DialogTrigger dialog)
     {
-        current_dialog = dialog;
-        currentMessages = current_dialog.messages;
-        currentActors = current_dialog.actors;
+        if (dialog == null || dialog.messages == null || dialog.messages.Length == 0) return;
+
+        currentMessages = dialog.messages;
+        currentActors = dialog.actors ?? new Actor[0];
         activeMessage = 0;
-        data.DialogManager = true;
+        SetActive(true);
         DisplayMessage();
-        backGroundBox.LeanScale(new Vector3(1f, 1f, 1f), 0.5f).setEaseInOutExpo();
+
+        if (backGroundBox != null)
+        {
+            LeanTween.cancel(backGroundBox.gameObject);
+            backGroundBox.LeanScale(Vector3.one, 0.5f).setEaseInOutExpo();
+        }
     }
 
     void DisplayMessage()
     {
-        Message messageToDisplay = currentMessages[activeMessage];
-        messageText.text = messageToDisplay.message;
+        var message = currentMessages[activeMessage];
+        if (messageText != null) messageText.text = message.message;
 
-        Actor actorToDisplay = currentActors[messageToDisplay.actorId];
-        actorName.text = actorToDisplay.name;
-        actorImage.sprite = actorToDisplay.sprite;
+        if (message.actorId >= 0 && message.actorId < currentActors.Length)
+        {
+            var actor = currentActors[message.actorId];
+            if (actorName != null) actorName.text = actor.name;
+            if (actorImage != null) actorImage.sprite = actor.sprite;
+        }
     }
 
     public void NextMessage()
     {
+        if (!isActive || currentMessages == null) return;
+
         activeMessage++;
-        Debug.Log("Dialogfgg");
         if (activeMessage < currentMessages.Length)
         {
             DisplayMessage();
+            return;
         }
-        else
+
+        SetActive(false);
+        if (backGroundBox != null)
         {
+            LeanTween.cancel(backGroundBox.gameObject);
             backGroundBox.LeanScale(Vector3.zero, 0.5f).setEaseInOutExpo();
-            data.DialogManager = false;
-            //StartCoroutine(LastScene());
         }
     }
 
-    /*public IEnumerator LastScene()
+    void SetActive(bool value)
     {
-        yield return new WaitForSeconds(2f);
-        Application.Quit();
-    } */
-
-    void Start()
-    {
-        backGroundBox.transform.localScale = Vector3.zero;
+        isActive = value;
+        if (data != null) data.DialogManager = value;
     }
-
 }

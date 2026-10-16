@@ -1,39 +1,39 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
+/// <summary>Стартовое меню уровня. Исправлено наслаивание анимаций при быстрых кликах.</summary>
 public class MenuBox : MonoBehaviour
 {
     public Data save;
     public Transform box;
     public Levelloader level;
 
-    void OnGUI()
-    {
-        GUI.enabled = false;
-    }
-
     public void CloseBox()
     {
         save.menuclose = true;
-        box.LeanMoveLocalY(-Screen.height, 1f).setEaseOutQuad();
+        Move(-Screen.height);
     }
 
     public void OpenBox()
     {
         save.menuclose = false;
-        box.LeanMoveLocalY(-180f, 1f).setEaseOutQuad();
+        Move(-180f);
+    }
+
+    void Move(float y)
+    {
+        if (box == null) return;
+        LeanTween.cancel(box.gameObject);
+        box.LeanMoveLocalY(y, 1f).setEaseOutQuad();
     }
 
     private void OnEnable()
     {
-        if (save.menuclose)
+        if (save != null && save.menuclose)
             CloseBox();
     }
 
     public void ButtonClose()
     {
-        level.LoadNextLeve();
+        if (level != null) level.LoadNextLeve(0);
     }
 }

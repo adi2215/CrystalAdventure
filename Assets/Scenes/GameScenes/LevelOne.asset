@@ -15,12 +15,20 @@ MonoBehaviour:
   tiles:
   - position: {x: 0, y: -1, z: 0}
     tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    superTileType: 0
   - position: {x: 0, y: 0, z: 0}
     tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    superTileType: 2
   characterPos: {x: 0.16, y: -1.4999999, z: 1.001}
-  crystalPos: {x: 0, y: -1.4199998, z: 1.001}
   panels:
   - panelName: Main
     commands:
     - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
   dialog: {fileID: 11400000, guid: 3b8d06a3dad584d46a24f146eb8bf33c, type: 2}
+  tutorial: {fileID: 11400000, guid: 14fbd115071044a79082471e075e6813, type: 2}
+  optimalCards: 1
+  solutionMain:
+  - type: 0
+    iterations: 1
+  solutionF1: []
+  solutionF2: []

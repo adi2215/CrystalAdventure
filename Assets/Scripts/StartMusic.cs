@@ -1,13 +1,11 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class StartMusic : MonoBehaviour
 {
-    
+    public string trackName = "Muse";
+
     void Start()
     {
-        MusicManager.Instance.PlayMusic("Muse");
+        if (MusicManager.Instance != null) MusicManager.Instance.PlayMusic(trackName);
     }
-
 }

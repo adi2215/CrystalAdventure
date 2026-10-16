@@ -35,4 +35,6 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/LevelMove/2Level.unity
     guid: 479aab6ada51c6f498be9cb6cd206764
-  m_configObjects: {}
+  m_configObjects:
+    com.unity.adaptiveperformance.loader_settings: {fileID: 11400000, guid: f2418ae3c231eaf43b9c57b24cac6605, type: 2}
+    com.unity.adaptiveperformance.simulator.provider_settings: {fileID: 11400000, guid: f59bd900b9b829444b03adc247c36754, type: 2}

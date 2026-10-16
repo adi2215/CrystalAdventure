@@ -12,10 +12,35 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ce5e892368934e8438eb372effcc9537, type: 3}
   m_Name: LevelSeven
   m_EditorClassIdentifier: 
-  levelName: Three
-  tilemapPos: {x: -0.00999999, y: -1.9699999, z: 0}
-  characterPos: {x: -0.00999999, y: -1.6209999, z: 1}
-  crystalPos: {x: 1.5929999, y: 1.4399999, z: 0}
+  tiles:
+  - position: {x: -1, y: -1, z: 0}
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    superTileType: 0
+  - position: {x: 0, y: -1, z: 0}
+    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 0
+  - position: {x: 0, y: 0, z: 0}
+    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
+    superTileType: 0
+  - position: {x: 1, y: 0, z: 0}
+    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 0
+  - position: {x: 1, y: 1, z: 0}
+    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
+    superTileType: 0
+  - position: {x: 2, y: 1, z: 0}
+    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 0
+  - position: {x: 3, y: 1, z: 0}
+    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 0
+  - position: {x: 2, y: 2, z: 0}
+    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
+    superTileType: 0
+  - position: {x: 3, y: 2, z: 0}
+    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    superTileType: 2
+  characterPos: {x: 0, y: -1.5799999, z: 1.001}
   panels:
   - panelName: Main
     commands:
@@ -23,15 +48,22 @@ MonoBehaviour:
     - {fileID: 11400000, guid: c4b68b0a1ca666d4398220a5925c3e91, type: 2}
     - {fileID: 11400000, guid: a36b4ddd499e17b45a04f767ed85509c, type: 2}
     - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
-    - {fileID: 11400000, guid: 7118d544b4f2a61419da87960ce21f7b, type: 2}
-    - {fileID: 11400000, guid: ad319c635084ceb488f2d45cc16e3bdd, type: 2}
-  - panelName: FunctionOne
-    commands:
-    - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
-    - {fileID: 11400000, guid: c4b68b0a1ca666d4398220a5925c3e91, type: 2}
-    - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
-  - panelName: FunctionTwo
-    commands:
-    - {fileID: 11400000, guid: 7bca09acd6e123149a05568b4e84d335, type: 2}
-    - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
   dialog: {fileID: 0}
+  optimalCards: 7
+  solutionMain:
+  - type: 2
+    iterations: 1
+  - type: 0
+    iterations: 1
+  - type: 2
+    iterations: 1
+  - type: 0
+    iterations: 1
+  - type: 2
+    iterations: 1
+  - type: 0
+    iterations: 1
+  - type: 2
+    iterations: 1
+  solutionF1: []
+  solutionF2: []

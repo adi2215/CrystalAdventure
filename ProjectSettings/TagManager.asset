@@ -6,6 +6,7 @@ TagManager:
   tags:
   - Cube
   - Hero
+  - Mushroom
   layers:
   - Default
   - TransparentFX

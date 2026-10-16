@@ -17,12 +17,16 @@ public class OverlayTile : MonoBehaviour
 
     public Vector3Int gridLocation;
 
+    public GameObject attachedObject;
+
+    public SuperBlocks block = SuperBlocks.None;
+
 
     private void Update()
     {
         if (Input.GetMouseButtonDown(0))
         {
-            HideTile(); 
+            HideTile();
         }
     } 
 

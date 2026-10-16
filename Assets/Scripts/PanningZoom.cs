@@ -3,7 +3,7 @@ using UnityEngine.EventSystems;
 
 public class PanningZoom : MonoBehaviour
 {
-    Vector3 touchStart;
+    private Vector3 touchStart;
 
     public float zoomMin, zoomMax;
     public float zoomMultiplier = 3f;
@@ -11,62 +11,114 @@ public class PanningZoom : MonoBehaviour
     private float smoothTime = 0.25f;
     private float velocity = 0f;
 
-    private bool hasTouched = false;
     public LayerMask blockInputLayer;
-    bool checkSurface = false;
+
+    private bool startedOverUI = false;
+
+    private Camera cam;
 
     private void Start()
     {
-        zoom = Camera.main.orthographicSize;
+        cam = Camera.main;
+        if (cam != null) zoom = cam.orthographicSize;
     }
 
-    private void Update() 
+    static bool PointerOverUI(int pointerId = -1) =>
+        EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(pointerId);
+
+   private void Update()
     {
-            if (EventSystem.current.IsPointerOverGameObject())
-                return;
-                
-            if (Input.GetMouseButtonDown(0))
+        if (cam == null) { cam = Camera.main; if (cam == null) return; }
+        #if UNITY_EDITOR || UNITY_STANDALONE
+                HandleMouse();
+        #else
+                HandleTouch();
+        #endif
+    }
+
+    private void HandleMouse()
+    {
+        if (PointerOverUI())
+        {
+            if (!startedOverUI)
+                startedOverUI = PointerOverUI();
+
+            return;
+        }
+
+        if (Input.GetMouseButtonDown(0))
+        {
+            startedOverUI = PointerOverUI();
+            touchStart = cam.ScreenToWorldPoint(Input.mousePosition);
+        }
+
+        if (Input.GetMouseButtonUp(0))
+        {
+            startedOverUI = false;
+        }
+
+        if (Input.GetMouseButton(0) && !startedOverUI)
+        {
+            Vector3 direction = touchStart - cam.ScreenToWorldPoint(Input.mousePosition);
+            cam.transform.position += direction;
+        }
+
+        Zoom(Input.GetAxis("Mouse ScrollWheel"));
+    }
+
+    private void HandleTouch()
+    {
+        if (Input.touchCount == 1)
+        {
+            Touch touch = Input.GetTouch(0);
+
+            if (touch.phase == TouchPhase.Began)
             {
-                touchStart = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+                startedOverUI = PointerOverUI(touch.fingerId);
+                touchStart = cam.ScreenToWorldPoint(touch.position);
             }
 
-            if (Input.touchCount == 2)
+            if (touch.phase == TouchPhase.Moved && !startedOverUI)
             {
-                Touch touchZero = Input.GetTouch(0);
-                Touch touchOne = Input.GetTouch(1);
-
-                Vector2 touchZeroPrevPos = touchZero.position - touchZero.deltaPosition;
-                Vector2 touchOnePrevPos = touchOne.position - touchOne.deltaPosition;
-
-                float prevMagnitude = (touchZeroPrevPos - touchOnePrevPos).magnitude;
-                float currentMagnitude = (touchZero.position - touchOne.position).magnitude;
-
-                float difference = currentMagnitude - prevMagnitude;
-
-                Zoom(difference * 0.01f);
-            }
-            
-            else if (Input.GetMouseButton(0))
-            {
-                Vector3 direction = touchStart - Camera.main.ScreenToWorldPoint(Input.mousePosition);
-                Camera.main.transform.position += direction;
+                Vector3 direction = touchStart - cam.ScreenToWorldPoint(touch.position);
+                cam.transform.position += direction;
             }
 
-            Zoom(Input.GetAxis("Mouse ScrollWheel"));
+            if (touch.phase == TouchPhase.Ended || touch.phase == TouchPhase.Canceled)
+            {
+                startedOverUI = false;
+            }
+        }
+
+        else if (Input.touchCount == 2)
+        {
+            Touch touchZero = Input.GetTouch(0);
+            Touch touchOne = Input.GetTouch(1);
+
+            Vector2 touchZeroPrev = touchZero.position - touchZero.deltaPosition;
+            Vector2 touchOnePrev = touchOne.position - touchOne.deltaPosition;
+
+            float prevMag = (touchZeroPrev - touchOnePrev).magnitude;
+            float currentMag = (touchZero.position - touchOne.position).magnitude;
+
+            float difference = currentMag - prevMag;
+
+            Zoom(difference * 0.01f);
+        }
     }
 
     private void Zoom(float increment)
     {
         zoom -= increment * zoomMultiplier;
         zoom = Mathf.Clamp(zoom, zoomMin, zoomMax);
-        Camera.main.orthographicSize = Mathf.SmoothDamp(Camera.main.orthographicSize, zoom, ref velocity, smoothTime);
+        cam.orthographicSize = Mathf.SmoothDamp(cam.orthographicSize, zoom, ref velocity, smoothTime);
     }
 
-    private bool IsPointerOverLayer()
+    /*private bool IsPointerOverLayer()
     {
         if (!Input.GetMouseButton(0)) return false; // Проверяем только если нажата кнопка мыши
 
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        Ray ray = cam.ScreenPointToRay(Input.mousePosition);
         if (Physics.Raycast(ray, out RaycastHit hit, Mathf.Infinity, blockInputLayer))
         {
             Debug.Log("Клик по объекту: " + hit.collider.gameObject.name); // Проверяем, сработал ли Raycast
@@ -83,15 +135,15 @@ public class PanningZoom : MonoBehaviour
         {
             hasTouched = true;
 
-            /*Touch touch = Input.GetTouch(0);
+            Touch touch = Input.GetTouch(0);
 
-            checkSurface = EventSystem.current.IsPointerOverGameObject(touch);*/
+            checkSurface = EventSystem.current.IsPointerOverGameObject(touch);
 
-            /*Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+            Ray ray = cam.ScreenPointToRay(Input.mousePosition);
 
-            RaycastHit2D hit = Physics2D.Raycast(ray.origin, ray.direction, Mathf.Infinity, layerMask);*/
+            RaycastHit2D hit = Physics2D.Raycast(ray.origin, ray.direction, Mathf.Infinity, layerMask);
 
-            checkSurface = EventSystem.current.IsPointerOverGameObject();
+            checkSurface = PointerOverUI();
             //(hit.collider != null) ? true : false
             //Debug.Log(hit.collider);
         }
@@ -101,10 +153,8 @@ public class PanningZoom : MonoBehaviour
             hasTouched = false;
         }
 
-        /*Debug.Log(hasTouched + " Has");*/
+        Debug.Log(hasTouched + " Has");
 
         return checkSurface;
-    }
-
-    
+    }*/
 }   

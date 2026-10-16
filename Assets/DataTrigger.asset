@@ -18,7 +18,7 @@ MonoBehaviour:
   burrons: 0
   wecanPlay: 0
   RemoveBlock: 0
-  NextLevel: 0
+  NextLevel: 5
   RemoveBool: 0
   FallingCrystal: 0
   FallingCube: 0
