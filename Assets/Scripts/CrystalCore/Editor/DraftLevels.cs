@@ -33,11 +33,11 @@ namespace CrystalAdventure.EditorTools
         public const string BottomGuid = "a36b4ddd499e17b45a04f767ed85509c";
         public const string FunctionOneGuid = "7118d544b4f2a61419da87960ce21f7b";
         public const string WhileGuid = "ad319c635084ceb488f2d45cc16e3bdd";
-        static readonly string[] GrassGuids =
+        internal static readonly string[] GrassGuids =
         {
             "31d5ccdc0f354844b897d0c6302e4a7f", "9893c68a16d7b8141a89f44c806a7a61", "fe3841476b4d00144af3423a02823130",
         };
-        const int SpecialGrass = 1; // этим тайлом в старых уровнях нарисованы грибы и кристаллы
+        internal const int SpecialGrass = 1; // этим тайлом в старых уровнях нарисованы грибы и кристаллы
 
         static readonly string[] Drafts = { "LevelFive", "LevelSeven", "LevelEleven" };
 

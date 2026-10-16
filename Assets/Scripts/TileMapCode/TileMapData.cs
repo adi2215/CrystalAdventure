@@ -139,6 +139,7 @@ public class TilemapData : MonoBehaviour
         }
 
         ColorTiles.Load(level, tilemap);   // цветные клетки (условия)
+        SpecialTiles.Load(level, loadLevelIndex); // лёд, рассыпающиеся плиты, снег главы Winter
 
         if (character != null) character.targetPosition = level.characterPos;
 

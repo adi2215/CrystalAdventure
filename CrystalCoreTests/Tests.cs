@@ -377,6 +377,7 @@ static class Program
         });
 
         LegacyTests.RunAll();
+        WinterTests.RunAll();
 
         return T.Summary();
     }

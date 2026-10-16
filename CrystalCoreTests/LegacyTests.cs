@@ -266,7 +266,7 @@ static class LegacyTests
     static readonly ItemType[] Moves = { ItemType.Forward, ItemType.Right, ItemType.Left, ItemType.Bottom };
 
     /// <summary>Панель как у игрока: до 8 слотов, пустые слоты, While со своей скобкой, цвета. F2 не вызывает функций (без рекурсии).</summary>
-    static List<CardSpec> RandomPanel(System.Random rnd, bool main, bool colors, bool allowF2 = false)
+    internal static List<CardSpec> RandomPanel(System.Random rnd, bool main, bool colors, bool allowF2 = false)
     {
         var list = new List<CardSpec>();
         int n = rnd.Next(main ? 1 : 0, 9);

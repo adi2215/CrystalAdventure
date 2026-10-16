@@ -10,7 +10,9 @@ namespace CrystalAdventure.EditorTools
     ///   • очередь шагов — как MovingManager.Expand (While со скобкой, F1/F2 до глубины 6, лимит 300);
     ///   • шаг — как CharacterCode.RunRoutine + WayTiles.Resolve (гриб под ногами = шаг на 2 клетки,
     ///     нет клетки — куб балансирует на краю и остаётся, покрашенная карточка не на своём цвете — пропуск);
-    ///   • кристалл — когда куб встал на клетку; все собраны — победа, остальные шаги не выполняются.
+    ///   • кристалл — когда куб встал на клетку; все собраны — победа, остальные шаги не выполняются;
+    ///   • Winter: лёд — встал на лёд, скользишь в ту же сторону, пока следующая клетка есть (останавливаешься
+    ///     на первой не-ледяной клетке или на последнем льду у края); рассыпающаяся плита — после ухода с неё пустота.
     /// Только для редактора и тестов, в сборку игры не попадает.
     /// </summary>
     public static class LegacyReplay
@@ -44,6 +46,9 @@ namespace CrystalAdventure.EditorTools
             var cells = new HashSet<Vector2Int>();
             var mushrooms = new HashSet<Vector2Int>();
             var crystals = new HashSet<Vector2Int>();
+            var ice = new HashSet<Vector2Int>();
+            var crumbling = new HashSet<Vector2Int>();
+            var broken = new HashSet<Vector2Int>();
             var colors = new Dictionary<Vector2Int, int>();
             var topZ = new Dictionary<Vector2Int, int>();
             if (level != null && level.tiles != null)
@@ -55,6 +60,8 @@ namespace CrystalAdventure.EditorTools
                     cells.Add(key);
                     if (t.superTileType == SuperBlocks.Mushroom) mushrooms.Add(key);
                     if (t.superTileType == SuperBlocks.Crystal) crystals.Add(key);
+                    if (t.superTileType == SuperBlocks.Ice) ice.Add(key);
+                    if (t.superTileType == SuperBlocks.Crumbling) crumbling.Add(key);
                     if (!topZ.TryGetValue(key, out var z) || t.position.z > z) { topZ[key] = t.position.z; colors[key] = (int)t.color; }
                 }
             }
@@ -74,9 +81,16 @@ namespace CrystalAdventure.EditorTools
                 if (dir == Vector2Int.zero) { r.EdgeHits++; continue; } // WayTiles: шага нет → «край»
                 int dist = mushrooms.Contains(pos) ? 2 : 1;
                 var target = new Vector2Int(pos.x + dir.x * dist, pos.y + dir.y * dist);
-                if (!cells.Contains(target)) { r.EdgeHits++; continue; }
+                if (!cells.Contains(target) || broken.Contains(target)) { r.EdgeHits++; continue; }
 
+                if (crumbling.Contains(pos)) broken.Add(pos); // ушёл с плиты — она падает
                 pos = target;
+                while (ice.Contains(pos))
+                {
+                    var next = new Vector2Int(pos.x + dir.x, pos.y + dir.y);
+                    if (!cells.Contains(next) || broken.Contains(next)) break;
+                    pos = next;
+                }
                 if (crystals.Contains(pos) && collected.Add(pos) && collected.Count == crystals.Count && crystals.Count > 0)
                 {
                     r.Won = true;

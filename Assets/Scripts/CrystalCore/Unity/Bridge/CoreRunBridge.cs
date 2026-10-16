@@ -10,6 +10,8 @@ namespace CrystalAdventure.UnityLayer
         public bool Skipped;     // покрашенная карточка не на своём цвете — пропуск
         public bool Moved;       // герой перешёл на другую клетку (иначе — упёрся: край или стена)
         public Vector2Int To;    // где герой оказался после шага (колонка x, y как ключ MapManager.map)
+        public bool Slid;        // лёд: сначала встал на Via, потом скользил до To
+        public Vector2Int Via;
     }
 
     /// <summary>
@@ -57,13 +59,21 @@ namespace CrystalAdventure.UnityLayer
                 }
 
                 var before = pos;
+                Vector2Int? via = null;
+                bool slid = false;
                 foreach (var e in turn.Events)
                 {
                     if (e.EntityId != heroId) continue;
                     switch (e.Type)
                     {
                         case GameEventType.Moved:
+                            pos = new Vector2Int(e.To.X, e.To.Y);
+                            if (via == null) via = pos;
+                            break;
                         case GameEventType.Slid:
+                            slid = true;
+                            pos = new Vector2Int(e.To.X, e.To.Y);
+                            break;
                         case GameEventType.Pushed:
                         case GameEventType.Bounced:
                         case GameEventType.Teleported:
@@ -71,7 +81,7 @@ namespace CrystalAdventure.UnityLayer
                             break;
                     }
                 }
-                plan.Add(new CorePlannedStep { Moved = pos != before, To = pos });
+                plan.Add(new CorePlannedStep { Moved = pos != before, To = pos, Slid = slid && via != null, Via = via ?? pos });
             }
             return plan;
         }

@@ -322,12 +322,23 @@ public class CharacterCode : MonoBehaviour
             if (cmd != null) Face(cmd.type);
             onStep?.Invoke(i);
             var step = plan != null ? PlannedStep(plan[i], map) : WayTiles.Resolve(_tile, cmd, map);
+            var leftTile = _tile;
 
             if (step.target == null)
             {
                 // Дальше пусто — куб доходит до края, балансирует и возвращается. Ход потрачен.
                 onEdge?.Invoke(i);
                 yield return EdgeTeeter(cmd != null ? WayTiles.Direction(cmd.type) : Vector3Int.zero);
+            }
+            else if (step.slid && step.via != null)
+            {
+                // Лёд: встал на первую ледяную клетку (шагом или прыжком с гриба) и скользит дальше.
+                if (step.fromMushroom) yield return JumpToTile(step.via);
+                else yield return MoveToTile(step.via);
+                if (token != _runToken) yield break;
+                if (SpecialTiles.IsCrumbling(leftTile)) SpecialTiles.Crumble(leftTile);
+                yield return SlideToTile(step.target);
+                if (step.onMushroom) yield return new WaitForSeconds(waitOnMushroom);
             }
             else if (step.fromMushroom || step.onMushroom)
             {
@@ -339,6 +350,10 @@ public class CharacterCode : MonoBehaviour
                 yield return MoveToTile(step.target);
             }
             if (token != _runToken) yield break; // победа или Rewind прямо на этом шаге
+
+            // Ушёл с рассыпающейся плиты — она падает (Winter). Повторный вызов безопасен.
+            if (step.target != null && leftTile != null && leftTile != _tile && SpecialTiles.IsCrumbling(leftTile))
+                SpecialTiles.Crumble(leftTile);
 
             if (_collectedNow)
             {
@@ -362,8 +377,49 @@ public class CharacterCode : MonoBehaviour
         step.target = target;
         step.fromMushroom = WayTiles.IsMushroom(_tile);
         step.onMushroom = WayTiles.IsMushroom(target);
+        if (planned.Slid && map.TryGetValue(new Vector3Int(planned.Via.x, planned.Via.y, 0), out var via) && via != null && via != target)
+        {
+            step.via = via;
+            step.slid = true;
+        }
         return step;
     }
+
+    [Header("Лёд (Winter)")]
+    [Tooltip("Сколько секунд скользит одна клетка")] public float slideTimePerCell = 0.11f;
+
+    /// <summary>
+    /// Скольжение по льду: без прыжка, равномерно, с наклоном вперёд и ледяной крошкой из-под куба.
+    /// В конце — как обычный шаг: встал на клетку (кристалл, если он там, берётся).
+    /// </summary>
+    IEnumerator SlideToTile(OverlayTile target)
+    {
+        Vector3 start = transform.localPosition;
+        Vector3 end = ToLocal(TopOf(target));
+        float cells = Mathf.Max(1f, Vector2.Distance(start, end) / 0.18f);
+        float time = Mathf.Max(0.12f, slideTimePerCell * cells);
+        float lean = end.x >= start.x ? -6f : 6f;
+        PixelSfx.Play(Sfx.Step, 0.45f, 1.5f);
+        float nextChip = 0f;
+        for (float t = 0f; t < 1f; t += Time.deltaTime / time)
+        {
+            transform.localPosition = Vector3.Lerp(start, end, t);
+            transform.rotation = Quaternion.Euler(0f, 0f, lean * Mathf.Sin(t * Mathf.PI));
+            if (t >= nextChip && order != null)
+            {
+                nextChip += 0.25f;
+                PixelFX.Burst(transform.position + Vector3.up * 0.02f, IceChips, 3, 0.2f, 0.05f, 0.9f,
+                              order.sortingLayerID, order.sortingOrder + 1, PixelFX.Dot, 0.7f, 0.3f);
+            }
+            yield return null;
+        }
+        transform.localPosition = end;
+        transform.rotation = Quaternion.identity;
+        Squash(-0.12f);
+        PositionCharacterOnLine(target, collect: true);
+    }
+
+    static readonly Color[] IceChips = { new Color(0.85f, 0.97f, 1f, 1f), new Color(0.6f, 0.85f, 0.98f, 1f), Color.white };
 
     /// <summary>
     /// Шаг на соседнюю клетку маленьким прыжком: присел → вытянулся и перелетел → сплющился при

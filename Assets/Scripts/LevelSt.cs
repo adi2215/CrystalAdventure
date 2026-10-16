@@ -84,9 +84,15 @@ public enum TileColor
     Yellow,
 }
 
+/// <summary>
+/// Особая клетка. Значения не переставлять — они хранятся в ассетах уровней числом.
+/// Ice и Crumbling — клетки главы Winter (см. World/SpecialTiles и ядро CrystalCore).
+/// </summary>
 public enum SuperBlocks
 {
     None,
     Mushroom,
-    Crystal
+    Crystal,
+    Ice,        // лёд: встал — скользишь дальше в ту же сторону до обычной клетки или края
+    Crumbling,  // рассыпающаяся плита: по ней можно пройти один раз — после ухода она падает
 }

@@ -12,6 +12,8 @@ namespace CrystalAdventure.UnityLayer
     ///   • клетка = колонка (x, y) Tilemap, берётся самый высокий блок колонки;
     ///   • ходить можно на любую клетку с тайлом — высота не мешает;
     ///   • гриб: стоишь на нём — следующий шаг на 2 клетки (LevelRules.ClassicMushroom);
+    ///   • лёд (Winter): встал — скользишь в ту же сторону, пока не встанешь на обычную клетку или не упрёшься в край;
+    ///   • рассыпающаяся плита (Winter): пройти можно один раз, после ухода с неё — пустота;
     ///   • кристалл берётся, когда герой ПРИШЁЛ на клетку (LevelRules.PickupOnArrival);
     ///   • цвет клетки — у верхнего блока колонки (как ColorTiles.Load);
     ///   • старт героя — клетка, ближайшая к characterPos (как CharacterCode.FindNearestTile).
@@ -56,6 +58,8 @@ namespace CrystalAdventure.UnityLayer
                 foreach (var info in group)
                 {
                     if (info.superTileType == SuperBlocks.Mushroom) spec.Type = TileType.BounceMushroom;
+                    if (info.superTileType == SuperBlocks.Ice) spec.Type = TileType.Ice;
+                    if (info.superTileType == SuperBlocks.Crumbling) { spec.Type = TileType.Crumbling; spec.Durability = 1; }
                     if (info.superTileType == SuperBlocks.Crystal)
                         setup.Entities.Add(new EntitySpec { Kind = EntityKind.Crystal, X = x, Y = y, Archetype = "Crystal" });
                 }

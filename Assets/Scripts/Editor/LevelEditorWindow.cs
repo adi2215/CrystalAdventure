@@ -22,7 +22,7 @@ using UnityEngine.Tilemaps;
 /// </summary>
 public class LevelEditorWindow : EditorWindow
 {
-    enum Tool { None, Crystal, Mushroom, Start, Erase, Paint }
+    enum Tool { None, Crystal, Mushroom, Start, Erase, Paint, Ice, Crumbling }
 
     // Позиция Tilemap в CollectorLevel (Grid в нуле). Из неё считается characterPos.
     static readonly Vector3 DefaultGameTilemapOffset = new Vector3(0f, -1.62f, 0f);
@@ -120,7 +120,11 @@ public class LevelEditorWindow : EditorWindow
 
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Инструмент (клик в Scene view)", EditorStyles.boldLabel);
-        tool = (Tool)GUILayout.Toolbar((int)tool, new[] { "Нет", "Кристалл", "Гриб", "Старт", "Стереть", "Цвет" });
+        tool = (Tool)GUILayout.Toolbar((int)tool, new[] { "Нет", "Кристалл", "Гриб", "Старт", "Стереть", "Цвет", "Лёд", "Плита" });
+        if (tool == Tool.Ice)
+            EditorGUILayout.HelpBox("Лёд (Winter): встал — скользишь в ту же сторону до обычной клетки или края.", MessageType.None);
+        if (tool == Tool.Crumbling)
+            EditorGUILayout.HelpBox("Рассыпающаяся плита (Winter): пройти можно один раз — после ухода с неё пустота.", MessageType.None);
         if (tool == Tool.Paint)
         {
             paintColor = (TileColor)EditorGUILayout.EnumPopup(new GUIContent("Цвет клетки", "None — убрать цвет. Покрашенная карточка хода срабатывает только на клетке своего цвета."), paintColor);
@@ -132,6 +136,9 @@ public class LevelEditorWindow : EditorWindow
         int crystals = supers.Count(kv => kv.Value == SuperBlocks.Crystal);
         int mushrooms = supers.Count(kv => kv.Value == SuperBlocks.Mushroom);
         EditorGUILayout.LabelField($"Кристаллов: {crystals}   Грибов: {mushrooms}   Цветных клеток: {colors.Count}   Старт: {(start.HasValue ? $"({start.Value.x}, {start.Value.y})" : "не задан")}");
+        int ice = supers.Count(kv => kv.Value == SuperBlocks.Ice);
+        int crumbling = supers.Count(kv => kv.Value == SuperBlocks.Crumbling);
+        if (ice + crumbling > 0) EditorGUILayout.LabelField($"Льда: {ice}   Плит: {crumbling}");
 
         foreach (var problem in Validate(level, CollectColumns(), supers, start))
             EditorGUILayout.HelpBox(problem, MessageType.Warning);
@@ -296,6 +303,8 @@ public class LevelEditorWindow : EditorWindow
             if (!top.TryGetValue(key, out var cur) || t.position.z > cur.position.z) top[key] = t;
             if (t.superTileType == SuperBlocks.Mushroom) p.Mushrooms.Add((key.x, key.y));
             if (t.superTileType == SuperBlocks.Crystal) p.Crystals.Add((key.x, key.y));
+            if (t.superTileType == SuperBlocks.Ice) p.Ice.Add((key.x, key.y));
+            if (t.superTileType == SuperBlocks.Crumbling) p.Crumbling.Add((key.x, key.y));
         }
         foreach (var kv in top)
             if (kv.Value.color != TileColor.None) p.Colors[(kv.Key.x, kv.Key.y)] = kv.Value.color;
@@ -460,7 +469,16 @@ public class LevelEditorWindow : EditorWindow
         return problems;
     }
 
-    static string Name(SuperBlocks b) => b == SuperBlocks.Crystal ? "Кристалл" : b == SuperBlocks.Mushroom ? "Гриб" : "Блок";
+    static string Name(SuperBlocks b) => b == SuperBlocks.Crystal ? "Кристалл" : b == SuperBlocks.Mushroom ? "Гриб"
+        : b == SuperBlocks.Ice ? "Лёд" : b == SuperBlocks.Crumbling ? "Плита" : "Блок";
+
+    static string Letter(SuperBlocks b) => b == SuperBlocks.Crystal ? "К" : b == SuperBlocks.Mushroom ? "Г"
+        : b == SuperBlocks.Ice ? "Л" : b == SuperBlocks.Crumbling ? "П" : "?";
+
+    static Color MarkerColor(SuperBlocks b) => b == SuperBlocks.Crystal ? new Color(0.95f, 0.4f, 1f, 0.8f)
+        : b == SuperBlocks.Ice ? new Color(0.55f, 0.9f, 1f, 0.9f)
+        : b == SuperBlocks.Crumbling ? new Color(0.75f, 0.55f, 0.35f, 0.9f)
+        : new Color(1f, 0.6f, 0.2f, 0.8f);
 
     string CheckAllLevels()
     {
@@ -565,6 +583,8 @@ public class LevelEditorWindow : EditorWindow
         {
             case Tool.Crystal: supers[column] = SuperBlocks.Crystal; break;
             case Tool.Mushroom: supers[column] = SuperBlocks.Mushroom; break;
+            case Tool.Ice: supers[column] = SuperBlocks.Ice; break;
+            case Tool.Crumbling: supers[column] = SuperBlocks.Crumbling; break;
             case Tool.Start: start = column; break;
             case Tool.Erase:
                 supers.Remove(column);
@@ -598,10 +618,10 @@ public class LevelEditorWindow : EditorWindow
         {
             if (!columns.TryGetValue(kv.Key, out var cell)) continue;
             var p = MarkerWorldPos(cell);
-            Handles.color = kv.Value == SuperBlocks.Crystal ? new Color(0.95f, 0.4f, 1f, 0.8f) : new Color(1f, 0.6f, 0.2f, 0.8f);
+            Handles.color = MarkerColor(kv.Value);
             Handles.DrawSolidDisc(p, Vector3.forward, 0.06f);
             style.normal.textColor = Handles.color;
-            Handles.Label(p + new Vector3(0f, 0.12f, 0f), kv.Value == SuperBlocks.Crystal ? "К" : "Г", style);
+            Handles.Label(p + new Vector3(0f, 0.12f, 0f), Letter(kv.Value), style);
         }
         foreach (var kv in colors)
         {

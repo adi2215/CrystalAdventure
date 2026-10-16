@@ -91,6 +91,9 @@ public class ActiveBlockManager : MonoBehaviour
             return;
         }
 
+        // Лёд и рассыпающиеся плиты рисует и возвращает World/SpecialTiles.
+        if (pos.superTileType == SuperBlocks.Ice || pos.superTileType == SuperBlocks.Crumbling) return;
+
         activeTileMap[pos.position] = pos.tile;
         tileStepCounts[pos.position] = 0;
     }
@@ -152,6 +155,7 @@ public class ActiveBlockManager : MonoBehaviour
         }
         collected.Clear();
         collectedCrystalObject = 0;
+        SpecialTiles.ResetAll(); // упавшие плиты — на место
     }
 
     // ============================================================

@@ -143,6 +143,9 @@ public class MapManager : MonoBehaviour
         // Свет (материал с нормалями), камни под островом, тени, летающие обломки.
         IslandDecor.Build(Tiles, Obj, tilemap, transform.root);
 
+        // Лёд, рассыпающиеся плиты и снег главы Winter — после света, чтобы картинка взяла тот же материал.
+        for (int i = 0; i < Tiles.Count; i++) SpecialTiles.Decorate(Tiles[i], Obj[i]);
+
         StartCoroutine(StartMove());
     }
 

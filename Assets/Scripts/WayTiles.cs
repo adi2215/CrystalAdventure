@@ -12,6 +12,8 @@ public class WayTiles
         public OverlayTile target;   // null = идти некуда (край карты) — куб стоит
         public bool fromMushroom;    // прыжок с гриба на 2 клетки
         public bool onMushroom;      // запрыгиваем НА гриб
+        public OverlayTile via;      // лёд: клетка, куда куб сначала встал (дальше скользит до target)
+        public bool slid;            // был лёд — от via до target куб скользит
     }
 
     public static Step Resolve(OverlayTile start, Item cmd, Dictionary<Vector3Int, OverlayTile> map) =>
@@ -32,13 +34,36 @@ public class WayTiles
         // поэтому его нельзя подставлять напрямую (раньше на высоких клетках куб не мог ходить).
         var key = new Vector3Int(start.gridLocation.x + dir.x * distance, start.gridLocation.y + dir.y * distance, 0);
 
-        if (map.TryGetValue(key, out var tile) && tile != null)
+        if (map.TryGetValue(key, out var tile) && tile != null && !SpecialTiles.IsBroken(tile))
         {
             step.target = tile;
             step.fromMushroom = standingOnMushroom;
             step.onMushroom = IsMushroom(tile);
+            ApplyIce(ref step, dir, map);
         }
         return step;
+    }
+
+    /// <summary>
+    /// Лёд (Winter): встал на лёд — скользишь в ту же сторону, пока следующая клетка есть
+    /// (стоп на первой не-ледяной клетке или на последнем льду у края). Те же правила, что в ядре и LevelSolver.
+    /// </summary>
+    public static void ApplyIce(ref Step step, Vector3Int dir, Dictionary<Vector3Int, OverlayTile> map)
+    {
+        if (step.target == null || !SpecialTiles.IsIce(step.target)) return;
+        var first = step.target;
+        var cur = first;
+        for (int guard = 0; guard < 64 && SpecialTiles.IsIce(cur); guard++)
+        {
+            var key = new Vector3Int(cur.gridLocation.x + dir.x, cur.gridLocation.y + dir.y, 0);
+            if (!map.TryGetValue(key, out var next) || next == null || SpecialTiles.IsBroken(next)) break;
+            cur = next;
+        }
+        if (cur == first) return;
+        step.via = first;
+        step.slid = true;
+        step.target = cur;
+        step.onMushroom = IsMushroom(cur);
     }
 
     public static bool IsMushroom(OverlayTile tile)

@@ -10,6 +10,8 @@ using System.Collections.Generic;
 ///   • клетки — колонки (x, y) Tilemap; ходить можно на любую клетку с тайлом;
 ///   • стоишь на грибе — следующий шаг на 2 клетки; нет клетки — куб стоит, ход потрачен;
 ///   • кристалл собирается, когда куб ВСТАЁТ на клетку (стартовая клетка не считается);
+///   • Winter: лёд — встал на лёд, скользишь в ту же сторону, пока следующая клетка есть (стоп на первой
+///     не-ледяной клетке или на последнем льду у края); рассыпающаяся плита — после ухода с неё пустота;
 ///   • как только собраны все кристаллы — победа, остальные команды не выполняются.
 ///
 /// Без зависимостей от Unity — работает и в редакторе, и в тестах.
@@ -36,6 +38,8 @@ public static class LevelSolver
         public List<(int x, int y)> Tiles = new List<(int x, int y)>();
         public List<(int x, int y)> Mushrooms = new List<(int x, int y)>();
         public List<(int x, int y)> Crystals = new List<(int x, int y)>();
+        public List<(int x, int y)> Ice = new List<(int x, int y)>();
+        public List<(int x, int y)> Crumbling = new List<(int x, int y)>();
         public Dictionary<(int x, int y), TileColor> Colors = new Dictionary<(int x, int y), TileColor>();
         public (int x, int y) Start;
         public ItemType[] MainCards = new ItemType[0];
@@ -76,6 +80,9 @@ public static class LevelSolver
         public int[] Color;            // TileColor клетки
         public readonly List<TileColor> UsedColors = new List<TileColor>();
         public int[] CrystalBit;       // -1 — нет кристалла
+        public bool[] Ice;
+        public int[] CrumbleBit;       // -1 — обычная клетка; иначе бит в Sim.Broken
+        public int[] Step1;            // [клетка * 4 + направление] → соседняя клетка (для скольжения), -1 — пусто
         public int Full;
         public int Start;
         // Переход: [клетка * 4 + направление] → клетка (или та же, если упёрся)
@@ -103,6 +110,14 @@ public static class LevelSolver
 
             foreach (var m in p.Mushrooms)
                 if (Index.TryGetValue(Key(m.x, m.y), out var i)) Mushroom[i] = true;
+            Ice = new bool[Cells.Length];
+            foreach (var c in p.Ice)
+                if (Index.TryGetValue(Key(c.x, c.y), out var i)) Ice[i] = true;
+            CrumbleBit = new int[Cells.Length];
+            for (int i = 0; i < CrumbleBit.Length; i++) CrumbleBit[i] = -1;
+            int cb = 0;
+            foreach (var c in p.Crumbling)
+                if (Index.TryGetValue(Key(c.x, c.y), out var i) && CrumbleBit[i] < 0 && cb < 64) CrumbleBit[i] = cb++;
             int bit = 0;
             foreach (var c in p.Crystals)
                 if (Index.TryGetValue(Key(c.x, c.y), out var i) && CrystalBit[i] < 0) CrystalBit[i] = bit++;
@@ -110,12 +125,14 @@ public static class LevelSolver
             Start = Index.TryGetValue(Key(p.Start.x, p.Start.y), out var s) ? s : -1;
 
             Next = new int[Cells.Length * 4];
+            Step1 = new int[Cells.Length * 4];
             for (int i = 0; i < Cells.Length; i++)
                 for (int d = 0; d < 4; d++)
                 {
                     var (dx, dy) = Dir(d);
                     int dist = Mushroom[i] ? 2 : 1;
                     Next[i * 4 + d] = Index.TryGetValue(Key(Cells[i].x + dx * dist, Cells[i].y + dy * dist), out var j) ? j : i;
+                    Step1[i * 4 + d] = Index.TryGetValue(Key(Cells[i].x + dx, Cells[i].y + dy), out var k) ? k : -1;
                 }
         }
     }
@@ -148,6 +165,7 @@ public static class LevelSolver
     struct Sim
     {
         public int Pos, Mask;
+        public long Broken;   // упавшие рассыпающиеся плиты (Winter)
         public bool Won;
     }
 
@@ -163,11 +181,24 @@ public static class LevelSolver
         int dir = atom & 3;
         int to = m.Next[s.Pos * 4 + dir];
         if (to == s.Pos) return; // упёрся
+        if (Fallen(m, s, to)) return; // плита уже упала — там пустота
+        int from = m.CrumbleBit[s.Pos];
+        if (from >= 0) s.Broken |= 1L << from; // ушёл с плиты — она падает
         s.Pos = to;
+        // Лёд: скользим дальше в ту же сторону, пока следующая клетка есть.
+        while (m.Ice[s.Pos])
+        {
+            int next = m.Step1[s.Pos * 4 + dir];
+            if (next < 0 || Fallen(m, s, next)) break;
+            s.Pos = next;
+        }
+        to = s.Pos;
         int b = m.CrystalBit[to];
         if (b >= 0) s.Mask |= 1 << b;
         if (s.Mask == m.Full) s.Won = true;
     }
+
+    static bool Fallen(Map m, Sim s, int cell) => m.CrumbleBit[cell] >= 0 && (s.Broken & (1L << m.CrumbleBit[cell])) != 0;
 
     // ───────────────────────────── поиск ─────────────────────────────
 
@@ -239,19 +270,19 @@ public static class LevelSolver
 
     static List<int> ShortestPath(Map m, HashSet<int> moves)
     {
-        var start = (m.Start, 0);
-        var prev = new Dictionary<(int, int), ((int, int) from, int dir)>();
-        var q = new Queue<(int pos, int mask)>();
+        var start = (m.Start, 0, 0L);
+        var prev = new Dictionary<(int, int, long), ((int, int, long) from, int dir)>();
+        var q = new Queue<(int pos, int mask, long broken)>();
         q.Enqueue(start);
-        prev[start] = ((-1, -1), -1);
+        prev[start] = ((-1, -1, 0L), -1);
         while (q.Count > 0)
         {
             var cur = q.Dequeue();
             foreach (var d in moves)
             {
-                var s = new Sim { Pos = cur.pos, Mask = cur.mask };
+                var s = new Sim { Pos = cur.pos, Mask = cur.mask, Broken = cur.broken };
                 Step(m, ref s, d);
-                var nk = (s.Pos, s.Mask);
+                var nk = (s.Pos, s.Mask, s.Broken);
                 if (prev.ContainsKey(nk)) continue;
                 prev[nk] = (cur, d);
                 if (s.Won)
@@ -282,7 +313,7 @@ public static class LevelSolver
         // Для текущей попытки
         List<int> f1Exp, f2Exp;
         List<Card> f1Cards, f2Cards;
-        readonly Dictionary<(int, int, ulong, int), int> seen = new Dictionary<(int, int, ulong, int), int>();
+        readonly Dictionary<(int, int, ulong, int, long), int> seen = new Dictionary<(int, int, ulong, int, long), int>();
         readonly List<Card> mainStack = new List<Card>();
 
         public Search(Problem p, Map map)
@@ -407,7 +438,7 @@ public static class LevelSolver
             // Отсечение повторов: в эту же клетку с теми же кристаллами (и тем же хвостом для While)
             // уже приходили, имея не меньше карточек в запасе.
             int flags = (mustCallF1 ? 1 : 0) | (mustCallF2 ? 2 : 0);
-            var key = (s.Pos, s.Mask, mainHasWhile ? hash : 0UL, flags);
+            var key = (s.Pos, s.Mask, mainHasWhile ? hash : 0UL, flags, s.Broken);
             if (seen.TryGetValue(key, out var bestLeft) && bestLeft >= left) return false;
             seen[key] = left;
 
