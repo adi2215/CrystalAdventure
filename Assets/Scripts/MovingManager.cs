@@ -72,8 +72,8 @@ public class MovingManager : MonoBehaviour
     public CharacterCode character;
 
     [Header("Новое ядро (перенос на CrystalCore)")]
-    [Tooltip("Куда идти, решает новое ядро CrystalCore, а показывает всё тот же куб и старый UI. Выключено — игра как раньше.")]
-    public bool useCrystalCore = false;
+    [Tooltip("Куда идти, решает новое ядро CrystalCore, а показывает всё тот же куб и старый UI. Выключено — старый WayTiles (запасной путь).")]
+    public bool useCrystalCore = true;
     [Tooltip("Писать в Console итог каждого запуска через ядро (только в редакторе)")]
     public bool logCoreRuns = true;
 
@@ -91,6 +91,7 @@ public class MovingManager : MonoBehaviour
         InstallJuice();
         InstallLoopBrackets();
         PaintPalette.Attach(this);
+        SpeedControl.Attach(this); // кнопка ×1 / ×2 / ×4
         SyncButtons();
     }
 
