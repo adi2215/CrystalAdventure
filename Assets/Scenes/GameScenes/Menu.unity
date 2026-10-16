@@ -2143,7 +2143,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: Crystal Adventure
+  m_text: "Crystal Adventure: The Ascent"
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 1399cd83ec55d1245b9cec7263b90fd6, type: 2}
   m_sharedMaterial: {fileID: -1330173874802461656, guid: 1399cd83ec55d1245b9cec7263b90fd6, type: 2}
