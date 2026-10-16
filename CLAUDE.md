@@ -1,0 +1,83 @@
+# Crystal Adventure — заметки для Claude
+
+## Что за игра
+
+2D-изометрическая головоломка про программирование (ориентация экрана — авто-поворот, в проекте есть Adaptive Performance и Device Simulator, т.е. целится в мобильные). В Player Settings продукт пока называется `BetaCube`. Игрок собирает из карточек программу (вперёд / влево / вправо / назад, функции F1/F2, циклы While, условия по цвету клетки), жмёт Play, и герой-куб выполняет её на поле, собирая кристаллы. Звёзды (1–3) зависят от числа карточек относительно оптимума, подсказок и того, не стоял ли герой на краю.
+
+- Главы по 15 уровней: **Forest / Winter / Sky** (карта глав — `UI/LevelMapMenu.cs`).
+- Персонаж-помощник в диалогах и туториале: в `TutorialDirector` её зовут **Эла**, в коде нового ядра — **Luma**. Имя надо уточнить у автора и привести к одному.
+- Механики тайлов: грибы (прыжок на 2 клетки), кристаллы, цветные клетки для условий.
+
+## Техника
+
+- **Unity 2022.3.5f1**, URP 14, новый Input System, 2D Tilemap (изометрия), TextMeshPro, Timeline.
+- Твины: **DOTween** (`Assets/Plugins/Demigiant`) и **LeanTween** (`Assets/LeanTween`). Это сторонний код, не трогать.
+- Сцены в Build Settings: `GameScenes/CollectorLevel` (индекс 0, основная), `GameScenes/Menu`, `LevelMove/FirstLevel`, `LevelMove/SecondLevel`, `LevelFunction/SceneFu`, `SceneFu 1`, `SceneWh`. Остальные сцены в `Assets/Scenes` — старые/экспериментальные (`BadApple` + `FunVideo/VideoToTilemap.cs` — пасхалка).
+- **Все уровни живут в одной сцене** `CollectorLevel`. Номер текущего уровня — в `Data.NextLevel`, сами уровни — ассеты `LevelSt` (`Assets/Scenes/GameScenes/Level*.asset`), загружает их `MapManager` / `TilemapData`.
+
+## Архитектура: две системы
+
+### 1. Старая система — она сейчас работает в игре
+
+Все игровые сцены используют её. Основные скрипты (лежат в корне `Assets/Scripts`):
+
+| Скрипт | Роль |
+|---|---|
+| `MovingManager` | Слоты карточек (`Commands`: Main / FunctionOne / FunctionTwo), Play/Reset, сборка очереди команд |
+| `CharacterCode` | Движение героя-куба по очереди команд, анимации, победа |
+| `InventoryItems` | Карточка в слоте: удаление, число повторов While, покраска (условие) |
+| `Item`, `ItemType`, `SlotType` | ScriptableObject карточки и перечисления |
+| `LevelSt`, `TileInfo`, `SolutionCard` | Данные уровня (тайлы, старт, супер-тайлы, эталонное решение, туториал) |
+| `MapManager`, `TileMapCode/TilemapData`, `WayTiles`, `PathFinder` | Построение поля и путь |
+| `LevelSolver` | Перебор минимального решения по правилам старой механики (для звёзд, без зависимостей от Unity) |
+| `FinishingLevel` | Окно победы со звёздами |
+| `SaveManager` | Сохранение звёзд по уровням |
+| `Levelloader` | Переход между уровнями (защита от двойного клика) |
+| `Tutorial/TutorialDirector` | Пошаговый туториал (затемнение, «дырка», рука, печатающийся текст) |
+| `UI/HintSystem`, `UI/HintGhost` | Подсказки |
+| `UI/*`, `World/*` | «Сок»: эффекты кнопок, пиксельные эффекты, звуки, атмосфера острова, свет, декор |
+| `Editor/LevelEditorWindow` | Окно «Crystal Adventure → Редактор уровней» (в т.ч. «Решить все уровни») |
+
+### 2. Новое ядро CrystalCore — написано, но ещё НЕ подключено к сценам
+
+`Assets/Scripts/CrystalCore/` — переписанная логика с детерминированной симуляцией:
+
+- `Core/` — отдельная сборка `CrystalAdventure.Core.asmdef` с `noEngineReferences: true`. **Никакого `UnityEngine` здесь использовать нельзя.**
+  - `Grid.cs` (Cell, Dir, RelDir), `World.cs` (состояние, правила, каналы рычагов/кнопок), `Entities.cs` (герой, враги, боссы, кристаллы; Intent — намерения на ход), `Tiles.cs` (поведение тайлов: лёд, гриб, рычаги, ворота, ветер, телепорты, шипы, облака…).
+  - `Program/` — программа игрока как дерево блоков (AST): `Blocks.cs`, `Conditions.cs`, `ProgramRunner.cs` (интерпретатор), `ProgramText.cs` (текстовая запись программы).
+  - `Turn/TurnResolver.cs` — одновременное разрешение хода героя и врагов.
+  - `Enemies/` — `EnemyBrains.cs`, `Bosses.cs` (Wood Mech Guardian, Frost General).
+  - `Simulation.cs` — при Play весь прогон считается сразу, затем проигрываются события.
+- `Unity/` — мост к Unity: `CrystalGameController` (точка входа уровня), `Bridge/ItemProgramAdapter` (карточки старого UI → программа ядра), `Playback/TurnPlayer`, `View/*`, `Level/LevelDefinition`.
+- `Editor/LevelValidator.cs`.
+
+`CrystalGameController` пока не стоит ни в одной сцене. Переход со старой системы на новую — открытая задача; до решения автора старую систему не удалять и не ломать.
+
+## Тесты ядра
+
+`CrystalCoreTests/` (вне `Assets`, Unity его не видит): `Tests.cs` — 42 консольных теста ядра, `Stubs/` — заглушки Unity и старых классов игры. Файл `.csproj` в репозиторий не попадает (`*.csproj` в `.gitignore`). Чтобы запустить, нужен .NET SDK и консольный проект, который включает `CrystalCoreTests/**/*.cs` и `Assets/Scripts/CrystalCore/Core/**/*.cs`. Любые изменения в `CrystalCore/Core` сопровождать тестом здесь.
+
+## Стиль кода
+
+- Комментарии и `/// <summary>` — на русском, подробные, с объяснением «почему». Блок «Исправлено: …» в summary описывает исправленный баг — так принято в проекте.
+- Классы ядра в пространстве имён `CrystalAdventure.Core` / `CrystalAdventure.UnityLayer`; старые скрипты — без namespace.
+- Многие UI-объекты создаются кодом сами (например, `LevelMapMenu`, туториал), чтобы ничего не настраивать в сцене. При возможности держаться этого подхода.
+- Пиксельный стиль: анимации сдвигают на целые пиксели.
+
+## Правила работы
+
+- Отвечай автору на **русском**.
+- Работа идёт в облаке **без Unity Editor**: запустить игру, сцену или Play Mode нельзя. Автор тестирует сам после pull. Поэтому внимательно проверяй код на ошибки компиляции, существование классов, полей и методов, на которые ссылаешься, версию API Unity 2022.3.
+- **Не редактируй `.unity`, `.prefab`, `.asset`, `.meta` без разрешения.** Если для задачи нужно изменить сцену или префаб, опиши, что сделать руками в Unity.
+- Для новых скриптов **не создавай `.meta`** — Unity сгенерирует их сама.
+- Не трогай `Library`, `Temp`, `Logs`, `Build`, `UserSettings`, а также сторонний код (`Assets/Plugins`, `Assets/LeanTween`, `Assets/TextMesh Pro`).
+- Не используй `UnityEngine` в `CrystalCore/Core`.
+- Не делай больших рефакторингов и не удаляй старую систему без согласования.
+- После каждой задачи кратко напиши: что изменено, в каких файлах и что проверить в Unity.
+
+## Что стоит обсудить с автором
+
+- План переноса сцен со старой системы (`MovingManager` + `CharacterCode`) на `CrystalGameController`.
+- Единое имя помощницы (Эла / Luma).
+- Много старых сцен вне Build Settings (`SampleScene 1`, `3Level`…`5Level`, `BetaEnd`, `SceneFu 1`) — нужны ли они.
+- Проект тестов без `.csproj` в репозитории — добавить, например, `CrystalCoreTests/CrystalCoreTests.csproj` с исключением в `.gitignore`.
