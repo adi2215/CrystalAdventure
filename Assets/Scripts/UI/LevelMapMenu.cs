@@ -80,7 +80,7 @@ public class LevelMapMenu : MonoBehaviour
     {
         if (_openButton != null)
         {
-            bool show = !_open && !Levelloader.IsLoading;
+            bool show = !_open && !Levelloader.IsLoading && !StoryDirector.IsBlocking; // под титульным экраном не видна
             if (_openButton.activeSelf != show) _openButton.SetActive(show);
         }
         if (_open && !_busy && Input.GetKeyDown(KeyCode.Escape)) Close();
@@ -165,6 +165,22 @@ public class LevelMapMenu : MonoBehaviour
         StartCoroutine(OpenRoutine());
     }
 
+    /// <summary>Карта открыта (или открывается).</summary>
+    public bool IsOpen => _open;
+
+    /// <summary>
+    /// Открыть карту поверх титульного экрана (StoryDirector, холст 600): холст карты поднимается
+    /// на sortingOrder, после закрытия возвращается на обычные 400.
+    /// </summary>
+    public void OpenOverMenu(int sortingOrder)
+    {
+        if (_canvas != null) _canvas.sortingOrder = sortingOrder;
+        Open();
+        if (!_open && _canvas != null) _canvas.sortingOrder = NormalOrder; // открыть не вышло
+    }
+
+    const int NormalOrder = 400;
+
     public void Close()
     {
         if (!_open || _busy) return;
@@ -204,6 +220,7 @@ public class LevelMapMenu : MonoBehaviour
         _root.gameObject.SetActive(false);
         _open = false;
         _busy = false;
+        if (_canvas != null) _canvas.sortingOrder = NormalOrder;
         if (openLevel >= 0)
         {
             var loader = FindObjectOfType<Levelloader>();

@@ -476,15 +476,55 @@ public class StoryDirector : MonoBehaviour
         loops.Add(StartCoroutine(Bob(heroes, 6f, 1.6f)));
 
         string choice = null;
-        var play = MenuButton("Play", new Vector2(0f, -330f), new Vector2(380f, 120f), Gold, 60f, () => choice = "play");
-        var levels = MenuButton("Levels", new Vector2(-300f, -470f), new Vector2(260f, 84f), new Color(0.47f, 0.86f, 0.55f, 1f), 40f, () => choice = "levels");
-        var story = MenuButton("Prologue", new Vector2(300f, -470f), new Vector2(260f, 84f), new Color(0.82f, 0.74f, 0.95f, 1f), 40f, () => choice = "prologue");
+        var buttons = new List<GameObject>
+        {
+            MenuButton("Play", new Vector2(0f, -330f), new Vector2(380f, 120f), Gold, 60f, () => choice = "play"),
+            MenuButton("Levels", new Vector2(-380f, -470f), new Vector2(300f, 84f), new Color(0.47f, 0.86f, 0.55f, 1f), 40f, () => choice = "levels"),
+            MenuButton("Prologue", new Vector2(0f, -470f), new Vector2(300f, 84f), new Color(0.82f, 0.74f, 0.95f, 1f), 40f, () => choice = "prologue"),
+            MenuButton("Settings", new Vector2(380f, -470f), new Vector2(300f, 84f), new Color(0.62f, 0.80f, 1f, 1f), 40f, () => choice = "settings"),
+        };
 
         yield return Tween(0.6f, k => _black.color = new Color(0f, 0f, 0f, 1f - k));
         PixelSfx.Play(Sfx.Open, 0.8f);
-        while (choice == null) yield return null;
-        PixelSfx.Play(Sfx.Click, 0.8f);
-        Destroy(play); Destroy(levels); Destroy(story);
+
+        // Меню: настройки и карта уровней открываются ПОВЕРХ титульного экрана и возвращают в него.
+        bool levelChosen = false;
+        while (true)
+        {
+            choice = null;
+            while (choice == null) yield return null;
+            PixelSfx.Play(Sfx.Click, 0.8f);
+            if (choice == "settings")
+            {
+                var settings = SettingsPanel.Open(700);
+                while (settings != null && settings.IsOpen) yield return null;
+                continue;
+            }
+            if (choice == "levels")
+            {
+                var map = FindObjectOfType<LevelMapMenu>();
+                if (map == null) { choice = "play"; break; }
+                map.OpenOverMenu(700);
+                while (map != null && map.IsOpen) yield return null;
+                if (Levelloader.IsLoading) { levelChosen = true; break; } // выбрали уровень — он уже загружается
+                continue;                                                 // закрыли карту — снова меню
+            }
+            break; // play / prologue
+        }
+        foreach (var b in buttons) Destroy(b);
+
+        if (levelChosen)
+        {
+            // Уровень грузится (герой улетает, облака) — меню быстро растворяется, чтобы переход было видно.
+            var oldBox = FindObjectOfType<MenuBox>(true);
+            if (oldBox != null) oldBox.CloseBox();
+            yield return Tween(0.25f, k => _rootGroup.alpha = 1f - k, ignoreSkip: true);
+            foreach (var c in loops) if (c != null) StopCoroutine(c);
+            _waveText = null;
+            Destroy(_root.parent.gameObject);
+            _root = null;
+            yield break;
+        }
 
         bool firstTime = PlayerPrefs.GetInt(PrologueKey, 0) == 0;
         yield return Tween(0.4f, k => _black.color = new Color(0f, 0f, 0f, k));
@@ -504,11 +544,6 @@ public class StoryDirector : MonoBehaviour
         if (oldMenu != null) oldMenu.CloseBox();
 
         yield return FinishOverlay();
-        if (choice == "levels")
-        {
-            var map = FindObjectOfType<LevelMapMenu>();
-            if (map != null) map.Open();
-        }
     }
 
     void BuildTitleBackdrop()
