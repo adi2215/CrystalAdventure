@@ -334,8 +334,8 @@ public class LoopBrackets : MonoBehaviour
             _badgeText.color = PixelSprites.Ink;
             _badgeText.raycastTarget = false;
             _badgeText.enableWordWrapping = false;
-            var anyText = owner.GetComponentInParent<Canvas>()?.GetComponentInChildren<TextMeshProUGUI>(true);
-            if (anyText != null && anyText != _badgeText && anyText.font != null) _badgeText.font = anyText.font;
+            var font = GameFont.Main;
+            if (font != null) _badgeText.font = font;
 
             // Скобка «вырастает» при появлении
             _root.localScale = new Vector3(1f, 0.6f, 1f);

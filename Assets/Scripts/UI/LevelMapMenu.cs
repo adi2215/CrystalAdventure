@@ -67,8 +67,7 @@ public class LevelMapMenu : MonoBehaviour
 
     void Start()
     {
-        var anyText = FindObjectOfType<TextMeshProUGUI>(true);
-        _font = anyText != null ? anyText.font : null;
+        _font = GameFont.Main;
         var hero = FindObjectOfType<CharacterCode>();
         _heroSprite = hero != null && hero.MainRenderer != null ? hero.MainRenderer.sprite : null;
 

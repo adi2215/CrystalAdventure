@@ -682,8 +682,7 @@ public class TutorialDirector : MonoBehaviour
 
     void Build(TutorialScript script)
     {
-        var anyText = FindObjectOfType<TextMeshProUGUI>(true);
-        _font = anyText != null ? anyText.font : null;
+        _font = GameFont.Main;
 
         var canvasGo = new GameObject("TutorialCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
         canvasGo.transform.SetParent(transform, false);

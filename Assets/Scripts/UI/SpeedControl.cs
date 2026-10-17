@@ -80,8 +80,8 @@ public class SpeedControl : MonoBehaviour
         lrt.anchorMax = Vector2.one;
         lrt.offsetMin = lrt.offsetMax = Vector2.zero;
         var text = label.GetComponent<TextMeshProUGUI>();
-        var hintText = hint != null ? hint.GetComponentInChildren<TextMeshProUGUI>(true) : null;
-        if (hintText != null) text.font = hintText.font;
+        var font = GameFont.Main;
+        if (font != null) text.font = font;
         text.alignment = TextAlignmentOptions.Center;
         text.enableAutoSizing = true;
         text.fontSizeMin = 10;

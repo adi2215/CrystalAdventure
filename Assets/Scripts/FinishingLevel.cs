@@ -520,9 +520,7 @@ public class FinishingLevel : MonoBehaviour
 
     TMP_FontAsset FindSceneFont()
     {
-        var canvas = GetComponentInParent<Canvas>();
-        var any = canvas != null ? canvas.GetComponentInChildren<TextMeshProUGUI>(true) : null;
-        return any != null ? any.font : null;
+        return GameFont.Main;
     }
 
     // ───────────────────────────── помощники ─────────────────────────────
