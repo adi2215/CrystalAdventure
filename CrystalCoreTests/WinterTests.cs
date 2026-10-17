@@ -12,7 +12,7 @@ using UnityEngine;
 /// </summary>
 static class WinterTests
 {
-    /// <summary>Уровень из рисунка: '#' клетка, 'I' лёд, 'P' плита, 'M' гриб, 'C' кристалл, 'S' старт. Первая строка — верх (y = rows-1).</summary>
+    /// <summary>Уровень из рисунка: '#' клетка, 'I' лёд, 'P' плита, 'M' гриб, 'C' кристалл, 'S' старт, '0'–'2' шипы с фазой. Первая строка — верх (y = rows-1).</summary>
     public static LevelSt Level(string name, params string[] rows)
     {
         var lvl = new LevelSt { name = name, tiles = new List<TileInfo>() };
@@ -23,8 +23,10 @@ static class WinterTests
                 char ch = rows[r][x];
                 if (ch == '.') continue;
                 int y = rows.Length - 1 - r;
-                var super = ch == 'I' ? SuperBlocks.Ice : ch == 'P' ? SuperBlocks.Crumbling : ch == 'M' ? SuperBlocks.Mushroom : ch == 'C' ? SuperBlocks.Crystal : SuperBlocks.None;
-                lvl.tiles.Add(new TileInfo { position = new Vector3Int(x, y, 0), superTileType = super });
+                var super = ch == 'I' ? SuperBlocks.Ice : ch == 'P' ? SuperBlocks.Crumbling : ch == 'M' ? SuperBlocks.Mushroom : ch == 'C' ? SuperBlocks.Crystal
+                          : ch >= '0' && ch <= '2' ? SuperBlocks.Spikes : SuperBlocks.None;
+                int phase = ch >= '0' && ch <= '2' ? ch - '0' : 0; // шипы: цифра — фаза (0 — ходы 3, 6, 9…)
+                lvl.tiles.Add(new TileInfo { position = new Vector3Int(x, y, 0), superTileType = super, phase = phase });
                 if (ch == 'S') start = new Vector2Int(x, y);
             }
         lvl.characterPos = LegacyLevelImport.CharacterPosFor(new Vector3Int(start.x, start.y, 0), null);

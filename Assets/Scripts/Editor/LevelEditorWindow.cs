@@ -22,7 +22,7 @@ using UnityEngine.Tilemaps;
 /// </summary>
 public class LevelEditorWindow : EditorWindow
 {
-    enum Tool { None, Crystal, Mushroom, Start, Erase, Paint, Ice, Crumbling }
+    enum Tool { None, Crystal, Mushroom, Start, Erase, Paint, Ice, Crumbling, Spikes }
 
     // Позиция Tilemap в CollectorLevel (Grid в нуле). Из неё считается characterPos.
     static readonly Vector3 DefaultGameTilemapOffset = new Vector3(0f, -1.62f, 0f);
@@ -38,6 +38,8 @@ public class LevelEditorWindow : EditorWindow
     readonly Dictionary<Vector2Int, SuperBlocks> supers = new Dictionary<Vector2Int, SuperBlocks>();
     // Цвета клеток (условия для покрашенных карточек)
     readonly Dictionary<Vector2Int, TileColor> colors = new Dictionary<Vector2Int, TileColor>();
+    readonly Dictionary<Vector2Int, int> spikePhases = new Dictionary<Vector2Int, int>();
+    int spikePhase;
     TileColor paintColor = TileColor.Red;
     Vector2Int? start;
     bool unsaved;
@@ -120,7 +122,12 @@ public class LevelEditorWindow : EditorWindow
 
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Инструмент (клик в Scene view)", EditorStyles.boldLabel);
-        tool = (Tool)GUILayout.Toolbar((int)tool, new[] { "Нет", "Кристалл", "Гриб", "Старт", "Стереть", "Цвет", "Лёд", "Плита" });
+        tool = (Tool)GUILayout.Toolbar((int)tool, new[] { "Нет", "Кристалл", "Гриб", "Старт", "Стереть", "Цвет", "Лёд", "Плита", "Шипы" });
+        if (tool == Tool.Spikes)
+        {
+            EditorGUILayout.HelpBox("Шипы (Forest): поднимаются каждый 3-й ход; стоишь на клетке в этот ход — смерть. Фаза — в какой из трёх ходов.", MessageType.None);
+            spikePhase = EditorGUILayout.IntPopup("Поднимаются на ходах", spikePhase, new[] { "3, 6, 9…", "2, 5, 8…", "1, 4, 7…" }, new[] { 0, 1, 2 });
+        }
         if (tool == Tool.Ice)
             EditorGUILayout.HelpBox("Лёд (Winter): встал — скользишь в ту же сторону до обычной клетки или края.", MessageType.None);
         if (tool == Tool.Crumbling)
@@ -201,6 +208,7 @@ public class LevelEditorWindow : EditorWindow
     {
         supers.Clear();
         colors.Clear();
+        spikePhases.Clear();
         start = null;
         unsaved = false;
         if (level == null || level.tiles == null) return;
@@ -211,6 +219,8 @@ public class LevelEditorWindow : EditorWindow
                 supers[new Vector2Int(info.position.x, info.position.y)] = info.superTileType;
             if (info != null && info.color != TileColor.None)
                 colors[new Vector2Int(info.position.x, info.position.y)] = info.color;
+            if (info != null && info.superTileType == SuperBlocks.Spikes)
+                spikePhases[new Vector2Int(info.position.x, info.position.y)] = info.phase;
         }
 
         if (tilemap == null) return;
@@ -269,7 +279,8 @@ public class LevelEditorWindow : EditorWindow
             // Супер-тайл — на верхний блок колонки (как кладёт кристалл ActiveBlockManager).
             if (columns.TryGetValue(key, out var topCell) && topCell.z == pos.z && supers.TryGetValue(key, out var t)) type = t;
             var color = columns.TryGetValue(key, out var top2) && top2.z == pos.z && colors.TryGetValue(key, out var c) ? c : TileColor.None;
-            tiles.Add(new TileInfo { position = pos, tile = tilemap.GetTile(pos), superTileType = type, color = color });
+            int phase = type == SuperBlocks.Spikes && spikePhases.TryGetValue(key, out var ph) ? ph : 0;
+            tiles.Add(new TileInfo { position = pos, tile = tilemap.GetTile(pos), superTileType = type, color = color, phase = phase });
         }
 
         Undo.RecordObject(level, "Save level");
@@ -333,13 +344,13 @@ public class LevelEditorWindow : EditorWindow
 
     LevelSolver.Result SolveAndStore(LevelSt lvl)
     {
-        if (lvl.HasEnemies)
+        if (lvl.NeedsCore)
         {
             // Решатель не знает о боях (враги, урон, щит) — у таких уровней решение задано вручную
             // и проверено ядром (Crystal Adventure → Уровни → Создать уровни с врагами). Не перезаписываем.
             var keep = new LevelSolver.Result { Solvable = lvl.HasSolution, Cards = lvl.optimalCards, ProvenOptimal = false,
-                                                Message = "уровень с врагами — решение не пересчитывается" };
-            Debug.Log($"[Решатель] {lvl.name}: уровень с врагами — оставляю решение ({lvl.optimalCards} карт.)");
+                                                Message = "уровень с врагами или шипами — решение не пересчитывается" };
+            Debug.Log($"[Решатель] {lvl.name}: уровень с врагами или шипами — оставляю решение ({lvl.optimalCards} карт.)");
             return keep;
         }
         var result = LevelSolver.Solve(BuildProblem(lvl));
@@ -479,14 +490,15 @@ public class LevelEditorWindow : EditorWindow
     }
 
     static string Name(SuperBlocks b) => b == SuperBlocks.Crystal ? "Кристалл" : b == SuperBlocks.Mushroom ? "Гриб"
-        : b == SuperBlocks.Ice ? "Лёд" : b == SuperBlocks.Crumbling ? "Плита" : "Блок";
+        : b == SuperBlocks.Ice ? "Лёд" : b == SuperBlocks.Crumbling ? "Плита" : b == SuperBlocks.Spikes ? "Шипы" : "Блок";
 
     static string Letter(SuperBlocks b) => b == SuperBlocks.Crystal ? "К" : b == SuperBlocks.Mushroom ? "Г"
-        : b == SuperBlocks.Ice ? "Л" : b == SuperBlocks.Crumbling ? "П" : "?";
+        : b == SuperBlocks.Ice ? "Л" : b == SuperBlocks.Crumbling ? "П" : b == SuperBlocks.Spikes ? "Ш" : "?";
 
     static Color MarkerColor(SuperBlocks b) => b == SuperBlocks.Crystal ? new Color(0.95f, 0.4f, 1f, 0.8f)
         : b == SuperBlocks.Ice ? new Color(0.55f, 0.9f, 1f, 0.9f)
         : b == SuperBlocks.Crumbling ? new Color(0.75f, 0.55f, 0.35f, 0.9f)
+        : b == SuperBlocks.Spikes ? new Color(0.85f, 0.25f, 0.25f, 0.9f)
         : new Color(1f, 0.6f, 0.2f, 0.8f);
 
     string CheckAllLevels()
@@ -594,6 +606,7 @@ public class LevelEditorWindow : EditorWindow
             case Tool.Mushroom: supers[column] = SuperBlocks.Mushroom; break;
             case Tool.Ice: supers[column] = SuperBlocks.Ice; break;
             case Tool.Crumbling: supers[column] = SuperBlocks.Crumbling; break;
+            case Tool.Spikes: supers[column] = SuperBlocks.Spikes; spikePhases[column] = spikePhase; break;
             case Tool.Start: start = column; break;
             case Tool.Erase:
                 supers.Remove(column);

@@ -39,6 +39,9 @@ public static class SpecialTiles
         public Coroutine Routine;
     }
     static readonly HashSet<Vector2Int> Broken = new HashSet<Vector2Int>();
+    static readonly Dictionary<Vector2Int, int> SpikePhase = new Dictionary<Vector2Int, int>();
+    static readonly Dictionary<Vector2Int, SpriteRenderer> SpikeViews = new Dictionary<Vector2Int, SpriteRenderer>();
+    static readonly Dictionary<Vector2Int, int> SpikeShown = new Dictionary<Vector2Int, int>(); // 0 лунки, 1 выглядывают, 2 торчат
     static bool _winter;
 
     static Sprite _ice, _cracks, _snow;
@@ -72,6 +75,9 @@ public static class SpecialTiles
         Falling.Clear();
         Broken.Clear();
         _hiddenOverlays.Clear();
+        SpikePhase.Clear();
+        SpikeViews.Clear();
+        SpikeShown.Clear();
         _winter = levelIndex / LevelsPerChapter == WinterChapter;
         if (level == null || level.tiles == null) return;
 
@@ -84,8 +90,11 @@ public static class SpecialTiles
             if (!top.TryGetValue(key, out var cur) || info.position.z > cur.position.z) top[key] = info;
         }
         foreach (var kv in top)
-            if (kv.Value.superTileType == SuperBlocks.Ice || kv.Value.superTileType == SuperBlocks.Crumbling)
+        {
+            if (kv.Value.superTileType == SuperBlocks.Ice || kv.Value.superTileType == SuperBlocks.Crumbling || kv.Value.superTileType == SuperBlocks.Spikes)
                 Current[kv.Key] = kv.Value.superTileType;
+            if (kv.Value.superTileType == SuperBlocks.Spikes) SpikePhase[kv.Key] = kv.Value.phase;
+        }
     }
 
     /// <summary>Повесить картинку на видимый блок клетки (из MapManager, когда блоки созданы).</summary>
@@ -104,6 +113,7 @@ public static class SpecialTiles
             overlay = CracksSprite;
             sr.color = new Color(sr.color.r * 0.82f, sr.color.g * 0.74f, sr.color.b * 0.66f, sr.color.a);
         }
+        else if (type == SuperBlocks.Spikes) AddSpikes(key, block, sr);
         else if (_winter && ColorTiles.At(cell.x, cell.y) == TileColor.None) overlay = SnowSprite;
 
         // Позицию НЕ запоминаем здесь: блоки ещё влетают на место (вступление MapManager).
@@ -234,6 +244,116 @@ public static class SpecialTiles
         FrozenCaps.Clear();
         foreach (var snow in HiddenSnow) if (snow != null) snow.SetActive(true);
         HiddenSnow.Clear();
+        ShowSpikes(0, false);
+    }
+
+    // ───────────── шипы (Forest) ─────────────
+    //
+    // Ядро (TileType.Spikes, период 3) решает, когда шипы бьют: в ход N, если (N + phase) % 3 == 0, и кто
+    // стоит на клетке в конце хода — погибает. Здесь только вид по номеру хода мира:
+    //   лунки → за ход до подъёма шипы выглядывают и краснеют → в ход подъёма торчат полностью → снова лунки.
+
+    const int SpikePeriod = 3;
+
+    static void AddSpikes(Vector2Int key, GameObject block, SpriteRenderer sr)
+    {
+        var child = new GameObject("Spikes");
+        child.transform.SetParent(block.transform, false);
+        var csr = child.AddComponent<SpriteRenderer>();
+        csr.sortingLayerID = sr.sortingLayerID;
+        csr.sortingOrder = sr.sortingOrder + 1; // как лёд и снег: над блоком, под кубом
+        csr.sharedMaterial = sr.sharedMaterial;
+        SpikeViews[key] = csr;
+        SetSpike(key, SpikeStateAt(key, 0), false);
+    }
+
+    static int SpikeStateAt(Vector2Int key, int worldTurn)
+    {
+        int phase = SpikePhase.TryGetValue(key, out var p) ? p : 0;
+        if (worldTurn > 0 && (worldTurn + phase) % SpikePeriod == 0) return 2;
+        if ((worldTurn + 1 + phase) % SpikePeriod == 0) return 1;
+        return 0;
+    }
+
+    /// <summary>Шипы после хода мира worldTurn (0 — до запуска). Вызывает CharacterCode после каждого шага.</summary>
+    public static void ShowSpikes(int worldTurn, bool animate = true)
+    {
+        bool rose = false;
+        foreach (var key in SpikeViews.Keys.ToList())
+        {
+            int state = SpikeStateAt(key, worldTurn);
+            if (animate && state == 2 && (!SpikeShown.TryGetValue(key, out var was) || was != 2)) rose = true;
+            SetSpike(key, state, animate);
+        }
+        if (rose) PixelSfx.Play(Sfx.Remove, 0.7f, 1.3f);
+    }
+
+    /// <summary>Шаг ядра i: номер хода мира — из прогона ядра (пропуски по цвету мир не двигают).</summary>
+    public static void AfterCoreStep(int step)
+    {
+        if (SpikeViews.Count == 0) return;
+        var run = CrystalAdventure.UnityLayer.CoreRunBridge.Last;
+        if (run == null || step < 0 || step >= run.Turns.Count) return;
+        ShowSpikes(run.Turns[step].Turn);
+    }
+
+    static void SetSpike(Vector2Int key, int state, bool animate)
+    {
+        if (!SpikeViews.TryGetValue(key, out var sr) || sr == null) return;
+        SpikeShown[key] = state;
+        sr.sprite = state == 2 ? SpikesUpSprite : state == 1 ? SpikesPeekSprite : SpikeHolesSprite;
+        sr.color = state == 1 ? new Color(1f, 0.72f, 0.72f, 1f) : Color.white;
+        if (animate && state == 2)
+            PixelFX.Burst(sr.transform.position + Vector3.up * 0.18f, PixelFX.DustColors, 5, 0.3f, 0.12f, 1.2f,
+                          sr.sortingLayerID, sr.sortingOrder + 2, PixelFX.Dot, 0.8f, 0.4f);
+    }
+
+    static Sprite _spikeHoles, _spikePeek, _spikeUp;
+    static Sprite SpikeHolesSprite => _spikeHoles != null ? _spikeHoles : (_spikeHoles = MakeSpikes(0));
+    static Sprite SpikesPeekSprite => _spikePeek != null ? _spikePeek : (_spikePeek = MakeSpikes(3));
+    static Sprite SpikesUpSprite => _spikeUp != null ? _spikeUp : (_spikeUp = MakeSpikes(10));
+
+    /// <summary>
+    /// Четыре лунки ромбом на верхней грани куба (как у CubesForGame, 32 px в ширину) и шипы высотой height.
+    /// Холст 32×44: шипы выше грани, опора та же, что у блока (8 px от низа).
+    /// </summary>
+    static Sprite MakeSpikes(int height)
+    {
+        const int W = 32, H = 44;
+        var px = new Color[W * H];
+        var hole = new Color(0.22f, 0.14f, 0.12f, 1f);
+        var light = new Color(0.92f, 0.88f, 0.80f, 1f);
+        var mid = new Color(0.66f, 0.62f, 0.58f, 1f);
+        var dark = new Color(0.38f, 0.33f, 0.34f, 1f);
+        // Сзади — вперёд, чтобы ближние шипы перекрывали дальние (y снизу вверх, дальше = выше).
+        var spots = new[] { new Vector2Int(16, 29), new Vector2Int(9, 25), new Vector2Int(23, 25), new Vector2Int(16, 21) };
+        foreach (var s in spots)
+        {
+            for (int dx = -2; dx <= 2; dx++) Put(px, W, H, s.x + dx, s.y, hole);
+            for (int dx = -1; dx <= 1; dx++) Put(px, W, H, s.x + dx, s.y - 1, hole);
+            for (int k = 0; k < height; k++)
+            {
+                int y = s.y + k;
+                bool wide = k < height * 0.6f;
+                if (wide)
+                {
+                    Put(px, W, H, s.x - 1, y, light);
+                    Put(px, W, H, s.x, y, mid);
+                    Put(px, W, H, s.x + 1, y, dark);
+                }
+                else Put(px, W, H, s.x, y, k == height - 1 ? light : mid);
+            }
+        }
+        var tex = new Texture2D(W, H, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp };
+        tex.SetPixels(px);
+        tex.Apply();
+        return Sprite.Create(tex, new Rect(0, 0, W, H), new Vector2(0.5f, 8f / H), 100f, 0, SpriteMeshType.FullRect);
+    }
+
+    static void Put(Color[] px, int w, int h, int x, int y, Color c)
+    {
+        if (x < 0 || y < 0 || x >= w || y >= h) return;
+        px[y * w + x] = c;
     }
 
     const int FallOrderShift = 5;

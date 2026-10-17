@@ -27,6 +27,9 @@ public class LevelSt : ScriptableObject
     [Tooltip("Сколько карточек «Супер-атака» сработает за уровень")] [Min(0)] public int superAttacks = 1;
 
     public bool HasEnemies => enemies != null && enemies.Count > 0;
+    public bool HasSpikes => tiles != null && tiles.Exists(t => t != null && t.superTileType == SuperBlocks.Spikes);
+    /// <summary>Уровень понимает только ядро (враги, шипы): старый решатель и эталон старых правил его не знают.</summary>
+    public bool NeedsCore => HasEnemies || HasSpikes;
 
     [Header("Решение — заполняет Crystal Adventure → Редактор уровней")]
     [Tooltip("Минимум карточек для прохождения. 0 — не посчитано (тогда звёзды по общим порогам).")]
@@ -94,6 +97,8 @@ public class TileInfo
     public SuperBlocks superTileType = SuperBlocks.None;
     [Tooltip("Цвет клетки для условий: покрашенная карточка срабатывает только на клетке своего цвета")]
     public TileColor color = TileColor.None;
+    [Tooltip("Шипы: в какой из трёх ходов поднимаются (0 — ходы 3, 6, 9…; 1 — 2, 5, 8…; 2 — 1, 4, 7…)")]
+    [Range(0, 2)] public int phase;
 }
 
 /// <summary>Цвет клетки / условие карточки.</summary>
@@ -116,4 +121,5 @@ public enum SuperBlocks
     Crystal,
     Ice,        // лёд: встал — скользишь дальше в ту же сторону до обычной клетки или края
     Crumbling,  // рассыпающаяся плита: по ней можно пройти один раз — после ухода она падает
+    Spikes,     // шипы (Forest): поднимаются каждый 3-й ход (TileInfo.phase — в какой), стоишь там — смерть
 }

@@ -36,6 +36,8 @@ public class LevelSt : ScriptableObject
     public int heroHp = 1;
     public int superAttacks = 1;
     public bool HasEnemies => enemies != null && enemies.Count > 0;
+    public bool HasSpikes => tiles != null && tiles.Exists(t => t != null && t.superTileType == SuperBlocks.Spikes);
+    public bool NeedsCore => HasEnemies || HasSpikes;
     public List<SolutionCard> solutionMain = new List<SolutionCard>();
     public List<SolutionCard> solutionF1 = new List<SolutionCard>();
     public List<SolutionCard> solutionF2 = new List<SolutionCard>();
@@ -70,11 +72,11 @@ public class SolutionCard
     }
 }
 
-[System.Serializable] public class TileInfo { public Vector3Int position; public TileBase tile; public SuperBlocks superTileType = SuperBlocks.None; public TileColor color = TileColor.None; }
+[System.Serializable] public class TileInfo { public Vector3Int position; public TileBase tile; public SuperBlocks superTileType = SuperBlocks.None; public TileColor color = TileColor.None; public int phase; }
 [System.Serializable] public class LevelEnemy { public Vector2Int cell; public string archetype = "Walker"; public ItemType facing = ItemType.Left; public string path = ""; public int body; }
 [System.Serializable] public class Panels { public string panelName; public Item[] commands; }
 public enum TileColor { None, Red, Blue, Yellow }
-public enum SuperBlocks { None, Mushroom, Crystal, Ice, Crumbling }
+public enum SuperBlocks { None, Mushroom, Crystal, Ice, Crumbling, Spikes }
 public class TilemapData : MonoBehaviour { public LevelSt[] tilemapData; public Tilemap tilemap; }
 public class Data : ScriptableObject { public int NextLevel; public int commandUsed; }
 public static class SaveManager { public static void SaveLevelResult(int levelNumber, int starsEarned) { } }

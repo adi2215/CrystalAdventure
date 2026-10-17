@@ -381,6 +381,7 @@ public class CharacterCode : MonoBehaviour
 
             // Удары врагов, урон, смерти, новые красные клетки — после шага куба.
             yield return EnemyLayer.FinishTurn(i);
+            if (core) SpecialTiles.AfterCoreStep(i); // шипы поднимаются / опускаются по ходу мира
             if (token != _runToken) yield break;
 
             if (_collectedNow)

@@ -86,9 +86,9 @@ namespace CrystalAdventure.EditorTools
             }
 
             var core = Simulation.Run(setup, program);
-            if (lvl.HasEnemies)
+            if (lvl.NeedsCore)
             {
-                // Враги есть только в ядре — старых правил для них нет. Проверяем, что решение проходит уровень.
+                // Врагов и шипов нет в старых правилах — проверяем, что решение проходит уровень в ядре.
                 if (!core.Won) problems.Add($"ядро: {core.Outcome} — {core.Message}");
                 if (core.BlocksUsed != lvl.optimalCards) problems.Add($"карточек: ядро {core.BlocksUsed}, оптимум уровня {lvl.optimalCards}");
                 verdict = problems.Count == 0 ? Verdict.Ok : Verdict.Bad;

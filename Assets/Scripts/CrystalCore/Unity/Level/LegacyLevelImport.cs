@@ -41,6 +41,9 @@ namespace CrystalAdventure.UnityLayer
         }
 
         /// <summary>Клетки, грибы, кристаллы и цвета старого уровня → в setup.</summary>
+        /// <summary>Шипы поднимаются каждый 3-й ход: в ход N, если (N + phase) % 3 == 0.</summary>
+        public const int SpikePeriod = 3;
+
         public static void AddTiles(LevelSetup setup, LevelSt level)
         {
             if (level == null || level.tiles == null) return;
@@ -60,6 +63,7 @@ namespace CrystalAdventure.UnityLayer
                     if (info.superTileType == SuperBlocks.Mushroom) spec.Type = TileType.BounceMushroom;
                     if (info.superTileType == SuperBlocks.Ice) spec.Type = TileType.Ice;
                     if (info.superTileType == SuperBlocks.Crumbling) { spec.Type = TileType.Crumbling; spec.Durability = 1; }
+                    if (info.superTileType == SuperBlocks.Spikes) { spec.Type = TileType.Spikes; spec.Period = SpikePeriod; spec.Offset = info.phase; }
                     if (info.superTileType == SuperBlocks.Crystal)
                         setup.Entities.Add(new EntitySpec { Kind = EntityKind.Crystal, X = x, Y = y, Archetype = "Crystal" });
                 }

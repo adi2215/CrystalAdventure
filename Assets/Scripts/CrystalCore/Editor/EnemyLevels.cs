@@ -38,7 +38,7 @@ namespace CrystalAdventure.EditorTools
         public sealed class Spec
         {
             public string Name, Title;
-            /// <summary>Сверху вниз: '#' клетка, 'S' старт, 'C' кристалл, 'I' лёд, 'P' плита, '.' пусто.</summary>
+            /// <summary>Сверху вниз: '#' клетка, 'S' старт, 'C' кристалл, 'I' лёд, 'P' плита, '0'–'2' шипы с фазой, '.' пусто.</summary>
             public string[] Rows;
             public LevelEnemy[] Enemies;
             public int HeroHp = 1, SuperAttacks = 0;
@@ -47,8 +47,8 @@ namespace CrystalAdventure.EditorTools
             public int ExpectedOptimal;
         }
 
-        static readonly ItemType[] MovesAndWhile = { ItemType.Forward, ItemType.Left, ItemType.Bottom, ItemType.Right, ItemType.While };
-        static SolutionCard C(ItemType t, int iterations = 1, int span = 0) => new SolutionCard { type = t, iterations = iterations, span = span };
+        public static readonly ItemType[] MovesAndWhile = { ItemType.Forward, ItemType.Left, ItemType.Bottom, ItemType.Right, ItemType.While };
+        public static SolutionCard C(ItemType t, int iterations = 1, int span = 0) => new SolutionCard { type = t, iterations = iterations, span = span };
         static LevelEnemy E(int x, int y, string archetype, ItemType facing, string path = "", int body = 0) =>
             new LevelEnemy { cell = new Vector2Int(x, y), archetype = archetype, facing = facing, path = path, body = body };
 
@@ -120,14 +120,16 @@ namespace CrystalAdventure.EditorTools
                     char ch = spec.Rows[r][x];
                     if (ch == '.') continue;
                     int y = top - r;
-                    var super = ch == 'C' ? SuperBlocks.Crystal : ch == 'I' ? SuperBlocks.Ice : ch == 'P' ? SuperBlocks.Crumbling : SuperBlocks.None;
+                    var super = ch == 'C' ? SuperBlocks.Crystal : ch == 'I' ? SuperBlocks.Ice : ch == 'P' ? SuperBlocks.Crumbling
+                              : ch >= '0' && ch <= '2' ? SuperBlocks.Spikes : SuperBlocks.None;
+                    int phase = super == SuperBlocks.Spikes ? ch - '0' : 0;
                     int grass = super == SuperBlocks.Crystal ? DraftLevels.SpecialGrass : ((x * 7 + y * 3) % 3 + 3) % 3;
-                    tiles.Add(new TileInfo { position = new Vector3Int(x, y, 0), tile = art(grass), superTileType = super });
+                    tiles.Add(new TileInfo { position = new Vector3Int(x, y, 0), tile = art(grass), superTileType = super, phase = phase });
                     if (ch == 'S') start = new Vector2Int(x, y);
                 }
             lvl.tiles = tiles;
             lvl.characterPos = LegacyLevelImport.CharacterPosFor(new Vector3Int(start.x, start.y, 0), null);
-            lvl.enemies = spec.Enemies.Select(e => new LevelEnemy { cell = e.cell, archetype = e.archetype, facing = e.facing, path = e.path, body = e.body }).ToList();
+            lvl.enemies = (spec.Enemies ?? new LevelEnemy[0]).Select(e => new LevelEnemy { cell = e.cell, archetype = e.archetype, facing = e.facing, path = e.path, body = e.body }).ToList();
             lvl.heroHp = spec.HeroHp;
             lvl.superAttacks = spec.SuperAttacks;
             lvl.panels = new[] { new Panels { panelName = "Main", commands = spec.Main.Select(item).ToArray() } };
@@ -166,25 +168,32 @@ namespace CrystalAdventure.EditorTools
         }
 
         [MenuItem("Crystal Adventure/Уровни/Создать уровни с врагами")]
-        static void Create()
+        static void Create() => CreateLevels(Specs, "Уровни с врагами",
+            "Перезаписать их новыми (синие враги-кубы по маршруту, змея, ледяной ромб)? Ассеты и номера уровней останутся те же.");
+
+        /// <summary>
+        /// Создать уровни по спецификациям и дописать их в конец списка TilemapData (как «Уровни с врагами»).
+        /// Уже существующие — после вопроса перезаписываются на месте (ассет и номер те же). Им же пользуется
+        /// SpikeLevels.
+        /// </summary>
+        public static void CreateLevels(Spec[] specs, string title, string overwriteQuestion)
         {
             var art = DraftLevels.GrassGuids.Select(g => AssetDatabase.LoadAssetAtPath<TileBase>(AssetDatabase.GUIDToAssetPath(g))).ToArray();
             if (art.Any(a => a == null)) { Debug.LogError("[Crystal] Не нашёл тайлы травы по GUID — уровни не созданы"); return; }
 
             var data = Object.FindObjectOfType<TilemapData>();
-            if (data == null && !EditorUtility.DisplayDialog("Уровни с врагами",
+            if (data == null && !EditorUtility.DisplayDialog(title,
                     "Сцена CollectorLevel не открыта — уровни создам, но в список игры не добавлю. Продолжить?", "Да", "Отмена"))
                 return;
 
-            var existing = Specs.Where(sp => AssetDatabase.LoadAssetAtPath<LevelSt>($"{LevelsFolder}/{sp.Name}.asset") != null).ToList();
-            bool overwrite = existing.Count > 0 && EditorUtility.DisplayDialog("Уровни с врагами",
-                $"Уже есть: {string.Join(", ", existing.Select(sp => sp.Name))}.\n\n" +
-                "Перезаписать их новыми (синие враги-кубы по маршруту, боссы-кубы)? Ассеты и номера уровней останутся те же.",
+            var existing = specs.Where(sp => AssetDatabase.LoadAssetAtPath<LevelSt>($"{LevelsFolder}/{sp.Name}.asset") != null).ToList();
+            bool overwrite = existing.Count > 0 && EditorUtility.DisplayDialog(title,
+                $"Уже есть: {string.Join(", ", existing.Select(sp => sp.Name))}.\n\n" + overwriteQuestion,
                 "Перезаписать", "Не трогать");
 
             var sb = new StringBuilder();
             var created = new List<LevelSt>();
-            foreach (var spec in Specs)
+            foreach (var spec in specs)
             {
                 string path = $"{LevelsFolder}/{spec.Name}.asset";
                 var lvl = AssetDatabase.LoadAssetAtPath<LevelSt>(path);
@@ -223,7 +232,7 @@ namespace CrystalAdventure.EditorTools
                     sb.AppendLine($"  №{list.IndexOf(l) + 1}: {l.name}" + (toAdd.Contains(l) ? " (добавлен)" : ""));
                 if (toAdd.Count > 0) sb.AppendLine("  !  Сохрани сцену (Ctrl+S).");
             }
-            Debug.Log("[Crystal] Уровни с врагами\n" + sb);
+            Debug.Log($"[Crystal] {title}\n" + sb);
         }
     }
 }

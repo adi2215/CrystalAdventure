@@ -379,6 +379,7 @@ static class Program
         LegacyTests.RunAll();
         WinterTests.RunAll();
         EnemyTests.RunAll();
+        SpikeTests.RunAll();
 
         return T.Summary();
     }

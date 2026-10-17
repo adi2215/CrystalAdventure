@@ -12,7 +12,7 @@ using UnityEngine;
 /// </summary>
 static class EnemyTests
 {
-    static LevelSt Build(EnemyLevels.Spec spec)
+    internal static LevelSt Build(EnemyLevels.Spec spec)
     {
         var lvl = new LevelSt { name = spec.Name };
         EnemyLevels.Build(lvl, spec, i => new UnityEngine.Tilemaps.TileBase(), t => { var it = new Item(); it.type = t; return it; });
@@ -40,7 +40,7 @@ static class EnemyTests
     /// Упереться в край — тоже способ переждать ход, но за край снимается звезда, поэтому оптимум считается без них.
     /// Перебор идёт в 4 потока — по первой карточке.
     /// </summary>
-    static string Shorter(LevelSt lvl, ItemType[] main, int maxLen)
+    internal static string Shorter(LevelSt lvl, ItemType[] main, int maxLen)
     {
         var moves = main.Where(t => t != ItemType.While).ToArray();
         bool hasWhile = main.Contains(ItemType.While);

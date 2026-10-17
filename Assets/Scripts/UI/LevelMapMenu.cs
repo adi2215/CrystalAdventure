@@ -58,6 +58,7 @@ public class LevelMapMenu : MonoBehaviour
     CanvasGroup _group;
     RectTransform _content;       // прокручиваемое содержимое
     GameObject _openButton;
+    GameObject _soundButton;
     TMP_FontAsset _font;
     Sprite _heroSprite;
     bool _open, _busy;
@@ -82,6 +83,7 @@ public class LevelMapMenu : MonoBehaviour
         {
             bool show = !_open && !Levelloader.IsLoading && !StoryDirector.IsBlocking; // под титульным экраном не видна
             if (_openButton.activeSelf != show) _openButton.SetActive(show);
+            if (_soundButton != null && _soundButton.activeSelf != show) _soundButton.SetActive(show);
         }
         if (_open && !_busy && Input.GetKeyDown(KeyCode.Escape)) Close();
     }
@@ -153,6 +155,29 @@ public class LevelMapMenu : MonoBehaviour
         label.rectTransform.offsetMin = new Vector2(84f, 0f);
         ButtonJuice.Ensure(btn.gameObject);
         _openButton = btn.gameObject;
+
+        // Рядом — кнопка звука: окно настроек (громкость музыки и звуков) прямо из игры.
+        var snd = NewRect("SoundButton", _canvas.transform);
+        snd.anchorMin = snd.anchorMax = new Vector2(0f, 0f);
+        snd.pivot = new Vector2(0f, 0f);
+        snd.anchoredPosition = new Vector2(28f + 210f + 14f, 28f);
+        snd.sizeDelta = new Vector2(84f, 84f);
+        var sndImg = snd.gameObject.AddComponent<Image>();
+        SetPixelPanel(sndImg, NodeLocked * 1.15f);
+        snd.gameObject.AddComponent<Button>().onClick.AddListener(() =>
+        {
+            var moving = FindObjectOfType<MovingManager>();
+            if (moving != null && moving.State == MovingManager.RunState.Playing) return; // куб едет — не мешаем
+            SettingsPanel.Open(500);
+        });
+        var sndIcon = NewRect("Icon", snd);
+        sndIcon.anchorMin = sndIcon.anchorMax = new Vector2(0.5f, 0.5f);
+        sndIcon.sizeDelta = new Vector2(48f, 42f);
+        var sndIconImg = sndIcon.gameObject.AddComponent<Image>();
+        sndIconImg.sprite = SpeakerIcon();
+        sndIconImg.raycastTarget = false;
+        ButtonJuice.Ensure(snd.gameObject);
+        _soundButton = snd.gameObject;
     }
 
     // ─────────── открыть / закрыть ───────────
@@ -691,6 +716,26 @@ public class LevelMapMenu : MonoBehaviour
         };
         _grid = Make(rows, new Dictionary<char, Color> { { '#', Color.white }, { 'w', new Color(1f, 0.8f, 0.32f, 1f) } });
         return _grid;
+    }
+
+    static Sprite _speaker;
+
+    /// <summary>Значок динамика для кнопки звука (8×7).</summary>
+    static Sprite SpeakerIcon()
+    {
+        if (_speaker != null) return _speaker;
+        string[] rows =
+        {
+            "...#..w.",
+            "..##...w",
+            "####.w.w",
+            "####.w.w",
+            "####.w.w",
+            "..##...w",
+            "...#..w.",
+        };
+        _speaker = Make(rows, new Dictionary<char, Color> { { '#', Color.white }, { 'w', new Color(1f, 0.8f, 0.32f, 1f) } });
+        return _speaker;
     }
 
     static Sprite DotSprite()
