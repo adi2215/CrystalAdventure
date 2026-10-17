@@ -21,9 +21,9 @@ public class LevelSt : ScriptableObject
     public TutorialScript tutorial;
 
     [Header("Враги (ядро CrystalCore)")]
-    [Tooltip("Враги и боссы уровня. Archetype: TrainingDummy, SmallBallScout, ForestDrone, FrostTurret, SnowBallSoldier, HeavyIceGuard, WoodMechGuardian, FrostBallGeneral")]
+    [Tooltip("Враги уровня. Archetype: Walker (синий куб по маршруту), BossForest / BossWinter (большие кубы по маршруту), FrostTurret (пушка). Касание кубов — смерть.")]
     public List<LevelEnemy> enemies = new List<LevelEnemy>();
-    [Tooltip("Здоровье героя на уровне с врагами")] [Min(1)] public int heroHp = 3;
+    [Tooltip("Здоровье героя на уровне с врагами (пока у героя одна жизнь)")] [Min(1)] public int heroHp = 1;
     [Tooltip("Сколько карточек «Супер-атака» сработает за уровень")] [Min(0)] public int superAttacks = 1;
 
     public bool HasEnemies => enemies != null && enemies.Count > 0;
@@ -71,8 +71,10 @@ public class SolutionCard
 public class LevelEnemy
 {
     public Vector2Int cell;
-    public string archetype = "TrainingDummy";
+    public string archetype = "Walker";
     public ItemType facing = ItemType.Left;
+    [Tooltip("Маршрут по кругу: F B L R — шаг вверх/вниз/влево/вправо по сетке (как карточки), W — стоять. Например RRLL.")]
+    public string path = "";
 }
 
 [System.Serializable]

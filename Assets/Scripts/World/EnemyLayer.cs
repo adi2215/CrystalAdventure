@@ -4,21 +4,21 @@ using System.Linq;
 using CrystalAdventure.Core;
 using CrystalAdventure.UnityLayer;
 using UnityEngine;
-using UnityEngine.UI;
 
 /// <summary>
-/// Враги и боссы на поле старой системы (уровни, где LevelSt.enemies не пуст).
+/// Враги на поле старой системы (уровни, где LevelSt.enemies не пуст).
 ///
 /// Решает всё ядро CrystalCore — здесь только показ того же прогона (CoreRunBridge.Last):
-///   • Setup — при загрузке уровня и после Rewind: враги на стартовых клетках, красные клетки
-///     «сюда ударят в следующий ход», сердечки героя, полоска здоровья босса;
-///   • BeginTurn(i) — в начале шага куба: шаги врагов (одновременно с кубом), призыв дронов, заморозка поля;
-///   • FinishTurn(i) — после шага куба: удары врагов, урон, щиты, смерти, новые красные клетки.
-/// Победу на таких уровнях объявляет ядро (кристаллы собраны И босс повержен), а не счётчик кристаллов:
+///   • Setup — при загрузке уровня и после Rewind: враги на стартовых клетках и красные клетки
+///     «сюда враг шагнёт / ударит в следующий ход» (видны ещё до Play);
+///   • BeginTurn(i) — в начале шага куба: враги шагают одновременно с ним;
+///   • FinishTurn(i) — после шага куба: выстрелы пушек, новые красные клетки.
+/// Касание врага — смерть героя (решает ядро, Entity.Deadly); куб при этом телепортируется на старт
+/// (CharacterCode → MovingManager.OnHeroDefeated). Победу на таких уровнях объявляет ядро:
 /// ActiveBlockManager.victoryByCore + ForceVictory из CharacterCode.
 ///
-/// Всё создаётся кодом и лежит рядом с кубом (тот же родитель — покачивается вместе с островом).
-/// Картинки — World/EnemyArt.
+/// Вид: синий враг и боссы — копия куба героя (все его спрайты, как у призрака-подсказки), перекрашенная;
+/// пушка — пиксель-арт World/EnemyArt. Порядок отрисовки — World/SortDepth.
 /// </summary>
 public static class EnemyLayer
 {
@@ -27,13 +27,11 @@ public static class EnemyLayer
         public int Id;
         public string Archetype;
         public GameObject Go;
-        public SpriteRenderer Sr;
+        public SpriteRenderer[] Parts;
+        public int[] Offsets;
+        public SpriteRenderer Main;
+        public Sprite Front, Back;
         public Vector2Int Cell;
-        public int Hp, MaxHp;
-        public bool Boss, Armored;
-        public SpriteRenderer[] Pips;
-        public GameObject Bubble;
-        public Color Base = Color.white;
     }
 
     static readonly Dictionary<int, View> Views = new Dictionary<int, View>();
@@ -41,11 +39,14 @@ public static class EnemyLayer
     static readonly List<Coroutine> Running = new List<Coroutine>();
     static LevelSt _level;
     static int _busy;
-    static GameObject _heartsRoot;
-    static readonly List<Image> Hearts = new List<Image>();
-    static int _heroHp;
 
     const int HeroId = 1; // ядро всегда создаёт героя первым (LevelSetup.Build)
+
+    // Цвета перекраски копии куба. Меняй здесь.
+    static readonly Color WalkerTint = new Color(0.45f, 0.62f, 1f, 1f);
+    static readonly Color BossForestTint = new Color(0.55f, 1f, 0.45f, 1f);
+    static readonly Color BossWinterTint = new Color(0.8f, 0.55f, 1f, 1f);
+    const float BossScale = 1.35f;
 
     /// <summary>На уровне есть враги — им управляет этот слой.</summary>
     public static bool Active { get; private set; }
@@ -63,7 +64,7 @@ public static class EnemyLayer
         Rebuild();
     }
 
-    /// <summary>Rewind: враги и сердечки — как в начале уровня.</summary>
+    /// <summary>Rewind и смерть героя: враги — на старт.</summary>
     public static void ResetAll()
     {
         if (_level != null) Rebuild();
@@ -75,7 +76,8 @@ public static class EnemyLayer
         Clear();
         Active = _level != null && _level.HasEnemies;
         if (ActiveBlockManager.Instance != null) ActiveBlockManager.Instance.victoryByCore = Active;
-        if (!Active) { ShowHearts(0, 0); return; }
+        if (Hero != null) Hero.RefreshSortOrder(); // глубина куба — по клетке (SortDepth) только на уровнях с врагами
+        if (!Active) return;
 
         var mm = MapManager.Instance;
         if (!LegacyLevelImport.TryFindStartCell(_level, mm != null ? mm.tilemap : null, out var start, out _)) return;
@@ -84,11 +86,9 @@ public static class EnemyLayer
         catch (System.Exception e) { Debug.LogWarning("[Crystal] Враги: не удалось собрать уровень — " + e.Message); Active = false; return; }
 
         foreach (var e in world.Entities.Where(x => x.Alive && x.IsHostile))
-            Spawn(e.Id, e.Archetype, new Vector2Int(e.Pos.X, e.Pos.Y), e.Facing, e.Hp, e.MaxHp, e.Kind == EntityKind.Boss, e.Armored, false);
+            Spawn(e.Id, e.Archetype, new Vector2Int(e.Pos.X, e.Pos.Y), e.Facing);
 
         ShowIntents(TurnResolver.PlanOnly(world));
-        _heroHp = world.Hero.Hp;
-        ShowHearts(_heroHp, world.Hero.MaxHp);
     }
 
     static void Clear()
@@ -113,7 +113,7 @@ public static class EnemyLayer
         return r != null && i >= 0 && i < r.Turns.Count ? r.Turns[i] : null;
     }
 
-    /// <summary>Начало шага куба: враги шагают одновременно с ним, босс призывает и замораживает.</summary>
+    /// <summary>Начало шага куба: враги шагают одновременно с ним.</summary>
     public static void BeginTurn(int i)
     {
         if (!Active || Host == null) return;
@@ -121,30 +121,15 @@ public static class EnemyLayer
         if (turn == null) return;
         ClearMarkers(); // намерения этого хода исполняются — подсветку снимаем
 
-        foreach (var e in turn.Events)
-        {
-            switch (e.Type)
-            {
-                case GameEventType.Spawned:
-                    Spawn(e.EntityId, e.Info, new Vector2Int(e.Cell.X, e.Cell.Y), e.Dir, 1, 1, false, false, true);
-                    break;
-                case GameEventType.Frozen:
-                    SpecialTiles.Freeze(new Vector2Int(e.Cell.X, e.Cell.Y));
-                    break;
-                case GameEventType.Guarded:
-                    if (Views.TryGetValue(e.EntityId, out var g)) SetBubble(g, true);
-                    break;
-            }
-        }
+        foreach (var e in turn.Events.Where(e => e.Type == GameEventType.Spawned))
+            Spawn(e.EntityId, e.Info, new Vector2Int(e.Cell.X, e.Cell.Y), e.Dir);
 
-        // Перемещения одного врага — по очереди (шаг, потом скольжение), разных — одновременно.
+        // Перемещения одного врага — по очереди (шаг, потом скольжение по льду), разных — одновременно.
         foreach (var group in turn.Events.Where(e => e.EntityId != HeroId && IsMove(e.Type)).GroupBy(e => e.EntityId))
             if (Views.TryGetValue(group.Key, out var v)) Track(MoveChain(v, group.ToList()));
-        foreach (var e in turn.Events.Where(e => e.EntityId != HeroId && e.Type == GameEventType.Bumped && e.Phase == EventPhase.Move))
-            if (Views.TryGetValue(e.EntityId, out var v)) { Face(v, e.Dir); Track(Nudge(v, e.Dir, 0.06f)); }
     }
 
-    /// <summary>Конец шага куба: удары, урон, смерти, новые намерения.</summary>
+    /// <summary>Конец шага куба: выстрелы пушек, исчезнувшие враги, новые красные клетки.</summary>
     public static IEnumerator FinishTurn(int i)
     {
         if (!Active) yield break;
@@ -152,69 +137,30 @@ public static class EnemyLayer
         if (turn == null) yield break;
         while (_busy > 0) yield return null;
 
-        bool any = false;
-        foreach (var e in turn.Events.Where(e => e.Phase == EventPhase.Combat || e.Phase == EventPhase.Tiles || e.Phase == EventPhase.Resolve))
+        foreach (var e in turn.Events)
         {
-            switch (e.Type)
+            if (e.EntityId == HeroId && e.Type != GameEventType.TileChanged) continue;
+            if (e.Type == GameEventType.Attacked && Views.TryGetValue(e.EntityId, out var a))
             {
-                case GameEventType.Attacked when e.EntityId != HeroId:
-                    if (Views.TryGetValue(e.EntityId, out var a))
-                    {
-                        Face(a, e.Dir);
-                        Track(Nudge(a, e.Dir, 0.12f));
-                        FlashArea(e.Area);
-                        PixelSfx.Play(Sfx.Remove, 0.6f, a.Boss ? 0.7f : 1.1f);
-                        any = true;
-                    }
-                    break;
-                case GameEventType.Damaged:
-                    if (e.EntityId == HeroId)
-                    {
-                        _heroHp = Mathf.Max(0, _heroHp - e.Amount);
-                        ShowHearts(_heroHp, Hearts.Count);
-                        var hero = Hero;
-                        if (hero != null) hero.PlayHurt();
-                    }
-                    else if (Views.TryGetValue(e.EntityId, out var d))
-                    {
-                        d.Hp = Mathf.Max(0, d.Hp - e.Amount);
-                        UpdatePips(d);
-                        Track(Flash(d, new Color(1f, 0.45f, 0.45f, 1f)));
-                    }
-                    any = true;
-                    break;
-                case GameEventType.Blocked:
-                    if (e.EntityId != HeroId && Views.TryGetValue(e.EntityId, out var b))
-                        Track(Flash(b, new Color(0.6f, 0.85f, 1f, 1f)));
-                    PixelSfx.Play(Sfx.Click, 0.6f, 1.4f);
-                    break;
-                case GameEventType.ArmorBroken:
-                    if (Views.TryGetValue(e.EntityId, out var ab)) { ab.Armored = false; ab.Sr.color = ab.Base; }
-                    break;
-                case GameEventType.Died:
-                case GameEventType.Fell:
-                    if (e.EntityId != HeroId && Views.TryGetValue(e.EntityId, out var dead))
-                    {
-                        Views.Remove(e.EntityId);
-                        Track(Die(dead, e.Type == GameEventType.Fell));
-                        any = true;
-                    }
-                    break;
+                Face(a, e.Dir);
+                Track(Recoil(a));
+                FlashArea(e.Area);
+                PixelSfx.Play(Sfx.Remove, 0.6f, 1.1f);
+            }
+            else if (e.Type == GameEventType.TileChanged && e.Info == "crumbled")
+            {
+                // Плита рассыпалась под врагом (под героем её роняет CharacterCode; повторный вызов безопасен).
+                var tile = TileAt(new Vector2Int(e.Cell.X, e.Cell.Y));
+                if (tile != null) SpecialTiles.Crumble(tile);
+            }
+            else if ((e.Type == GameEventType.Died || e.Type == GameEventType.Fell) && Views.TryGetValue(e.EntityId, out var dead))
+            {
+                Views.Remove(e.EntityId);
+                Track(Vanish(dead));
             }
         }
         while (_busy > 0) yield return null;
-        if (any) yield return new WaitForSeconds(0.08f);
 
-        // Щит босса (Guard) действует один ход.
-        foreach (var v in Views.Values) if (v.Bubble != null && v.Bubble.activeSelf) SetBubble(v, false);
-        // Новая фаза босса: ледяная броня (обычные удары не пробивают — нужна Супер-атака).
-        foreach (var e in turn.Events.Where(x => x.Type == GameEventType.ArmorGained))
-            if (Views.TryGetValue(e.EntityId, out var armored))
-            {
-                armored.Armored = true;
-                armored.Sr.color = new Color(0.7f, 0.9f, 1f, 1f);
-                PixelSfx.Play(Sfx.Pop, 0.7f, 0.6f);
-            }
         ShowIntents(turn.Events.Where(e => e.Type == GameEventType.IntentPlanned));
     }
 
@@ -248,80 +194,81 @@ public static class EnemyLayer
         return mm != null && mm.tilemap != null ? mm.tilemap.GetCellCenterWorld(new Vector3Int(c.x, c.y, 0)) + new Vector3(0f, 0.12f, 1f) : Vector3.zero;
     }
 
-    static int OrderAt(Vector2Int c)
+    static int DepthAt(Vector2Int c)
     {
         var t = TileAt(c);
-        var sr = t != null ? t.GetComponent<SpriteRenderer>() : null;
-        return (sr != null ? sr.sortingOrder : 0) + 2; // как куб (CharacterCode.OrderAboveTile)
+        return t != null ? SortDepth.Character(t) : SortDepth.Character(0, c.x, c.y);
     }
 
-    static void Spawn(int id, string archetype, Vector2Int cell, Dir facing, int hp, int maxHp, bool boss, bool armored, bool popIn)
+    static bool IsCube(string archetype) => archetype == "Walker" || archetype == "BossForest" || archetype == "BossWinter";
+
+    static void Spawn(int id, string archetype, Vector2Int cell, Dir facing)
     {
         var root = Root;
+        var hero = Hero;
         if (root == null) return;
         var go = new GameObject($"Enemy_{archetype}_{id}");
         go.transform.SetParent(root, false);
         go.transform.position = WorldOf(cell);
-        var sr = go.AddComponent<SpriteRenderer>();
-        sr.sprite = EnemyArt.For(archetype);
-        var heroSr = Hero != null ? Hero.MainRenderer : null;
-        if (heroSr != null) { sr.sortingLayerID = heroSr.sortingLayerID; sr.sharedMaterial = heroSr.sharedMaterial; }
-        sr.sortingOrder = OrderAt(cell);
+        var v = new View { Id = id, Archetype = archetype, Go = go, Cell = cell };
 
-        var v = new View { Id = id, Archetype = archetype, Go = go, Sr = sr, Cell = cell, Hp = hp, MaxHp = maxHp, Boss = boss || EnemyArt.IsBoss(archetype), Armored = armored };
-        Face(v, facing);
-        if (armored) sr.color = new Color(0.7f, 0.9f, 1f, 1f);
-        v.Base = Color.white;
-        if (v.Boss) BuildPips(v);
+        if (IsCube(archetype) && hero != null && hero.MainRenderer != null)
+        {
+            // Копия куба героя: все его спрайты (тело, глаза…), кроме тени — как у призрака-подсказки.
+            // Масштаб — по z: x и y у куба «дышат» (HeroJuice), z — нет.
+            go.transform.localScale = Vector3.one * Mathf.Abs(hero.transform.localScale.z) * (archetype == "Walker" ? 1f : BossScale);
+            var src = hero.GetComponentsInChildren<SpriteRenderer>(true);
+            var tint = archetype == "BossForest" ? BossForestTint : archetype == "BossWinter" ? BossWinterTint : WalkerTint;
+            v.Parts = new SpriteRenderer[src.Length];
+            v.Offsets = new int[src.Length];
+            for (int i = 0; i < src.Length; i++)
+            {
+                var part = new GameObject("Part").AddComponent<SpriteRenderer>();
+                part.transform.SetParent(go.transform, false);
+                part.transform.localPosition = hero.transform.InverseTransformPoint(src[i].transform.position);
+                part.transform.localRotation = Quaternion.identity;
+                part.transform.localScale = src[i].transform == hero.transform ? Vector3.one : src[i].transform.localScale;
+                part.sprite = src[i] == hero.MainRenderer ? hero.FrontSprite : src[i].sprite;
+                part.sharedMaterial = src[i].sharedMaterial;
+                part.sortingLayerID = src[i].sortingLayerID;
+                part.color = tint;
+                v.Offsets[i] = src[i].sortingOrder - hero.MainRenderer.sortingOrder;
+                v.Parts[i] = part;
+                if (src[i] == hero.MainRenderer) v.Main = part;
+            }
+            v.Front = hero.FrontSprite;
+            v.Back = hero.backSprite;
+        }
+        else
+        {
+            // Пушка и прочие — пиксель-арт.
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = EnemyArt.For(archetype);
+            if (hero != null && hero.MainRenderer != null) { sr.sortingLayerID = hero.MainRenderer.sortingLayerID; sr.sharedMaterial = hero.MainRenderer.sharedMaterial; }
+            v.Parts = new[] { sr };
+            v.Offsets = new[] { 0 };
+            v.Main = sr;
+        }
+
         Views[id] = v;
-        if (popIn) Track(PopIn(v));
+        SetOrder(v, DepthAt(cell));
+        Face(v, facing);
+        Track(PopIn(v));
     }
+
+    static void SetOrder(View v, int order)
+    {
+        for (int i = 0; i < v.Parts.Length; i++)
+            if (v.Parts[i] != null) v.Parts[i].sortingOrder = order + v.Offsets[i];
+    }
+
+    static ItemType Arrow(Dir d) =>
+        d == Dir.North ? ItemType.Forward : d == Dir.East ? ItemType.Right : d == Dir.South ? ItemType.Bottom : ItemType.Left;
 
     static void Face(View v, Dir d)
     {
-        // Спрайты смотрят вправо по экрану; West и North в изометрии — влево (как у куба).
-        if (v.Sr != null) v.Sr.flipX = d == Dir.West || d == Dir.North;
-    }
-
-    static void BuildPips(View v)
-    {
-        float top = v.Sr.sprite != null ? v.Sr.sprite.rect.height * 0.01f + 0.04f : 0.3f;
-        v.Pips = new SpriteRenderer[v.MaxHp];
-        for (int i = 0; i < v.MaxHp; i++)
-        {
-            var p = new GameObject("Hp" + i).AddComponent<SpriteRenderer>();
-            p.transform.SetParent(v.Go.transform, false);
-            p.transform.localPosition = new Vector3((i - (v.MaxHp - 1) * 0.5f) * 0.04f, top, 0f);
-            p.sprite = EnemyArt.Pip;
-            p.sortingLayerID = v.Sr.sortingLayerID;
-            p.sortingOrder = v.Sr.sortingOrder + 1;
-            v.Pips[i] = p;
-        }
-        UpdatePips(v);
-    }
-
-    static void UpdatePips(View v)
-    {
-        if (v.Pips == null) return;
-        for (int i = 0; i < v.Pips.Length; i++)
-            if (v.Pips[i] != null) v.Pips[i].color = i < v.Hp ? new Color(1f, 0.3f, 0.3f, 1f) : new Color(0.25f, 0.2f, 0.3f, 0.8f);
-    }
-
-    static void SetBubble(View v, bool on)
-    {
-        if (on && v.Bubble == null)
-        {
-            var b = new GameObject("Guard").AddComponent<SpriteRenderer>();
-            b.transform.SetParent(v.Go.transform, false);
-            float h = v.Sr.sprite != null ? v.Sr.sprite.rect.height * 0.01f : 0.2f;
-            b.transform.localPosition = new Vector3(0f, h * 0.5f, 0f);
-            b.transform.localScale = Vector3.one * Mathf.Max(1f, h / 0.2f);
-            b.sprite = EnemyArt.Bubble;
-            b.sortingLayerID = v.Sr.sortingLayerID;
-            b.sortingOrder = v.Sr.sortingOrder + 1;
-            v.Bubble = b.gameObject;
-        }
-        if (v.Bubble != null) v.Bubble.SetActive(on);
+        if (v.Front != null) CharacterCode.ApplyFacing(v.Parts, v.Main, v.Front, v.Back, Arrow(d)); // как куб
+        else if (v.Main != null) v.Main.flipX = d == Dir.West || d == Dir.North;               // пушка
     }
 
     // ───────────── красные клетки ─────────────
@@ -333,23 +280,29 @@ public static class EnemyLayer
         if (root == null) return;
         foreach (var e in planned)
         {
-            if (e.Type != GameEventType.IntentPlanned || e.Area == null) continue;
-            foreach (var c in e.Area)
+            if (e.Type != GameEventType.IntentPlanned) continue;
+            if (e.Area != null)
+                foreach (var c in e.Area) AddMarker(root, new Vector2Int(c.X, c.Y));         // выстрел пушки
+            else if (e.Info == IntentKind.Move.ToString() && Views.TryGetValue(e.EntityId, out var v))
             {
-                var cell = new Vector2Int(c.X, c.Y);
-                if (TileAt(cell) == null) continue;
-                var m = new GameObject("Danger").AddComponent<SpriteRenderer>();
-                m.transform.SetParent(root, false);
-                m.transform.position = WorldOf(cell) + new Vector3(0f, 0.04f, 0f);
-                m.sprite = EnemyArt.Danger;
-                var heroSr = Hero != null ? Hero.MainRenderer : null;
-                if (heroSr != null) m.sortingLayerID = heroSr.sortingLayerID;
-                // Тот же порядок, что у героя, но ромб чуть выше по Y (сортировка по оси Y) — значит,
-                // рисуется ЗА героем и врагом на этой клетке и поверх снега / льда (у них +1).
-                m.sortingOrder = OrderAt(cell);
-                Markers.Add(m.gameObject);
+                var o = e.Dir.Offset();
+                AddMarker(root, new Vector2Int(v.Cell.x + o.X, v.Cell.y + o.Y));             // следующий шаг врага
             }
         }
+    }
+
+    static void AddMarker(Transform root, Vector2Int cell)
+    {
+        var tile = TileAt(cell);
+        if (tile == null) return;
+        var m = new GameObject("Danger").AddComponent<SpriteRenderer>();
+        m.transform.SetParent(root, false);
+        m.transform.position = WorldOf(cell) + new Vector3(0f, 0.04f, 0f);
+        m.sprite = EnemyArt.Danger;
+        var heroSr = Hero != null ? Hero.MainRenderer : null;
+        if (heroSr != null) m.sortingLayerID = heroSr.sortingLayerID;
+        m.sortingOrder = SortDepth.Marker(tile); // всегда под персонажами (SortDepth)
+        Markers.Add(m.gameObject);
     }
 
     static void ClearMarkers()
@@ -360,55 +313,15 @@ public static class EnemyLayer
 
     static void FlashArea(Cell[] area)
     {
-        if (area == null || Root == null) return;
+        var sr = Hero != null ? Hero.MainRenderer : null;
+        if (area == null || sr == null) return;
         foreach (var c in area)
         {
             var cell = new Vector2Int(c.X, c.Y);
             if (TileAt(cell) == null) continue;
-            var sr = Hero != null ? Hero.MainRenderer : null;
-            if (sr != null)
-                PixelFX.Burst(WorldOf(cell) + Vector3.up * 0.04f, new[] { new Color(1f, 0.35f, 0.25f, 1f), new Color(1f, 0.8f, 0.4f, 1f) },
-                              4, 0.25f, 0.08f, 0.8f, sr.sortingLayerID, OrderAt(cell) + 3, PixelFX.Dot, 0.8f, 0.35f);
+            PixelFX.Burst(WorldOf(cell) + Vector3.up * 0.04f, new[] { new Color(1f, 0.35f, 0.25f, 1f), new Color(1f, 0.8f, 0.4f, 1f) },
+                          4, 0.25f, 0.08f, 0.8f, sr.sortingLayerID, DepthAt(cell) + 3, PixelFX.Dot, 0.8f, 0.35f);
         }
-    }
-
-    // ───────────── сердечки героя ─────────────
-
-    static void ShowHearts(int hp, int max)
-    {
-        if (max <= 0)
-        {
-            if (_heartsRoot != null) _heartsRoot.SetActive(false);
-            return;
-        }
-        if (_heartsRoot == null || Hearts.Count != max)
-        {
-            if (_heartsRoot != null) Object.Destroy(_heartsRoot);
-            Hearts.Clear();
-            _heartsRoot = new GameObject("HeroHearts", typeof(Canvas), typeof(CanvasScaler));
-            var canvas = _heartsRoot.GetComponent<Canvas>();
-            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-            canvas.sortingOrder = 50;
-            var scaler = _heartsRoot.GetComponent<CanvasScaler>();
-            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.matchWidthOrHeight = 0.5f;
-            for (int i = 0; i < max; i++)
-            {
-                var img = new GameObject("Heart" + i, typeof(RectTransform), typeof(Image)).GetComponent<Image>();
-                var rt = (RectTransform)img.transform;
-                rt.SetParent(_heartsRoot.transform, false);
-                rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 1f);
-                rt.pivot = new Vector2(0.5f, 1f);
-                rt.sizeDelta = new Vector2(63f, 56f); // 9×8 пикселей × 7
-                rt.anchoredPosition = new Vector2((i - (max - 1) * 0.5f) * 72f, -24f);
-                img.raycastTarget = false;
-                Hearts.Add(img);
-            }
-        }
-        _heartsRoot.SetActive(true);
-        for (int i = 0; i < Hearts.Count; i++)
-            if (Hearts[i] != null) Hearts[i].sprite = i < hp ? EnemyArt.Heart : EnemyArt.HeartEmpty;
     }
 
     // ───────────── анимации (на целые пиксели) ─────────────
@@ -438,65 +351,45 @@ public static class EnemyLayer
             Vector3 from = v.Go.transform.position, end = WorldOf(to);
             bool slide = e.Type == GameEventType.Slid;
             float time = slide ? 0.11f : 0.24f;
-            v.Sr.sortingOrder = Mathf.Max(v.Sr.sortingOrder, OrderAt(to));
+            // Шаг к камере — сразу поверх; шаг от камеры — новый порядок только по прибытии (как у куба).
+            int fromOrder = DepthAt(v.Cell), toOrder = DepthAt(to);
+            SetOrder(v, Mathf.Max(fromOrder, toOrder));
             for (float t = 0f; t < 1f; t += Time.deltaTime / time)
             {
                 if (v.Go == null) yield break;
                 float k = slide ? t : Mathf.SmoothStep(0f, 1f, t);
-                float hop = slide ? 0f : 4f * 0.04f * t * (1f - t);
+                float hop = slide ? 0f : 4f * 0.045f * t * (1f - t);
                 v.Go.transform.position = Snap(Vector3.Lerp(from, end, k) + Vector3.up * hop);
                 yield return null;
             }
+            if (v.Go == null) yield break;
             v.Go.transform.position = end;
             v.Cell = to;
-            v.Sr.sortingOrder = OrderAt(to);
+            SetOrder(v, toOrder);
         }
     }
 
-    static Vector3 DirToWorld(Dir d)
-    {
-        var o = d.Offset();
-        return new Vector3((o.X - o.Y) * 0.16f, (o.X + o.Y) * 0.08f, 0f);
-    }
-
-    static IEnumerator Nudge(View v, Dir d, float amount)
+    static IEnumerator Recoil(View v)
     {
         if (v.Go == null) yield break;
         var start = v.Go.transform.position;
-        var off = DirToWorld(d).normalized * amount;
         for (float t = 0f; t < 1f; t += Time.deltaTime / 0.18f)
         {
             if (v.Go == null) yield break;
-            v.Go.transform.position = Snap(start + off * Mathf.Sin(t * Mathf.PI));
+            v.Go.transform.position = Snap(start + Vector3.down * (0.02f * Mathf.Sin(t * Mathf.PI)));
             yield return null;
         }
         if (v.Go != null) v.Go.transform.position = start;
     }
 
-    static IEnumerator Flash(View v, Color c)
+    static IEnumerator Vanish(View v)
     {
+        if (v.Go == null) yield break;
+        var scale = v.Go.transform.localScale;
         for (float t = 0f; t < 1f; t += Time.deltaTime / 0.3f)
-        {
-            if (v.Sr == null) yield break;
-            v.Sr.color = Color.Lerp(c, v.Armored ? new Color(0.7f, 0.9f, 1f, 1f) : v.Base, t);
-            yield return null;
-        }
-        if (v.Sr != null) v.Sr.color = v.Armored ? new Color(0.7f, 0.9f, 1f, 1f) : v.Base;
-    }
-
-    static IEnumerator Die(View v, bool fall)
-    {
-        PixelSfx.Play(Sfx.Crystal, 0.5f, 0.6f);
-        if (v.Sr != null)
-            PixelFX.Burst(v.Go.transform.position + Vector3.up * 0.08f, PixelFX.DustColors, 10, 0.5f, 0.2f, 1.4f,
-                          v.Sr.sortingLayerID, v.Sr.sortingOrder + 2, PixelFX.Dot, 1f, 0.6f);
-        var start = v.Go != null ? v.Go.transform.position : Vector3.zero;
-        var scale = v.Go != null ? v.Go.transform.localScale : Vector3.one;
-        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.35f)
         {
             if (v.Go == null) yield break;
             v.Go.transform.localScale = scale * (1f - t);
-            if (fall) v.Go.transform.position = Snap(start + Vector3.down * (t * t * 0.6f));
             yield return null;
         }
         if (v.Go != null) Object.Destroy(v.Go);
@@ -504,8 +397,8 @@ public static class EnemyLayer
 
     static IEnumerator PopIn(View v)
     {
+        if (v.Go == null) yield break;
         var scale = v.Go.transform.localScale;
-        PixelSfx.Play(Sfx.Pop, 0.6f, 0.9f);
         for (float t = 0f; t < 1f; t += Time.deltaTime / 0.25f)
         {
             if (v.Go == null) yield break;

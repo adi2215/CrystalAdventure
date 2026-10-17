@@ -101,6 +101,8 @@ public class CharacterCode : MonoBehaviour
 
     public OverlayTile StartTile => startTile;
     public SpriteRenderer MainRenderer => order;
+    /// <summary>Спрайт «лицом к камере» (копии куба — враги и боссы — берут его, EnemyLayer).</summary>
+    public Sprite FrontSprite => _frontSprite;
 
     private void Awake()
     {
@@ -110,6 +112,8 @@ public class CharacterCode : MonoBehaviour
         _renderers = GetComponentsInChildren<SpriteRenderer>(true);
         _baseColors = new Color[_renderers.Length];
         for (int i = 0; i < _renderers.Length; i++) _baseColors[i] = _renderers[i] != null ? _renderers[i].color : Color.white;
+        _baseOrders = new int[_renderers.Length];
+        for (int i = 0; i < _renderers.Length; i++) _baseOrders[i] = _renderers[i] != null ? _renderers[i].sortingOrder : 0;
         _juice = GetComponent<HeroJuice>();
         if (_juice == null) _juice = gameObject.AddComponent<HeroJuice>();
     }
@@ -166,11 +170,7 @@ public class CharacterCode : MonoBehaviour
         if ((new Vector2(start.x, start.y) - new Vector2(end.x, end.y)).sqrMagnitude < 0.09f) start = end + jumpInOffset;
         float height = jumpInHeight + Vector3.Distance(start, end) * 0.15f;
 
-        if (tile != null)
-        {
-            var tr = tile.GetComponent<SpriteRenderer>();
-            if (order != null && tr != null) order.sortingOrder = tr.sortingOrder + OrderAboveTile;
-        }
+        if (tile != null) ApplyOrder(tile);
 
         PixelSfx.Play(Sfx.Jump, 0.7f, 0.9f);
         Squash(0.25f);
@@ -343,6 +343,11 @@ public class CharacterCode : MonoBehaviour
                 // Упёрся во врага (или стену) — это не край: толкнулся и остался, «чуть не упал» не считается.
                 yield return Bump(new Vector3Int(planned.Facing.x, planned.Facing.y, 0));
             }
+            else if (core && planned.HeroDied && !planned.Moved)
+            {
+                // Коснулся врага в этом шаге — ядро шаг не засчитало. Это не край: рывок к врагу, дальше телепорт.
+                yield return Bump(cmd != null ? WayTiles.Direction(cmd.type) : Vector3Int.zero);
+            }
             else if (step.target == null)
             {
                 // Дальше пусто — куб доходит до края, балансирует и возвращается. Ход потрачен.
@@ -386,9 +391,12 @@ public class CharacterCode : MonoBehaviour
 
             if (core && planned.HeroDied)
             {
-                // Герой пал — программа обрывается; дальше только Rewind.
+                // Коснулся врага — телепорт на старт: программа обрывается, уровень сбрасывается (как Rewind).
                 yield return Defeat();
-                break;
+                if (token != _runToken) yield break;
+                _run = null;
+                if (List != null) List.OnHeroDefeated();
+                yield break;
             }
             if (core && planned.Won && EnemyLayer.Active && ActiveBlockManager.Instance != null)
             {
@@ -450,6 +458,7 @@ public class CharacterCode : MonoBehaviour
                     if (order != null) { sr.sortingLayerID = order.sortingLayerID; sr.sortingOrder = order.sortingOrder + 2; }
                     _shieldFx = sr.gameObject;
                 }
+                if (order != null && _shieldFx.TryGetComponent<SpriteRenderer>(out var shieldSr)) shieldSr.sortingOrder = order.sortingOrder + 2;
                 _shieldFx.SetActive(true);
                 PixelSfx.Play(Sfx.Pop, 0.6f, 1.2f);
                 yield return new WaitForSeconds(0.2f);
@@ -477,17 +486,60 @@ public class CharacterCode : MonoBehaviour
         if (order != null) order.color = BaseColorOf(order);
     }
 
-    /// <summary>Поражение: куб заваливается и тает. Rewind вернёт его (RestoreLook).</summary>
+    static readonly Color[] TeleportColors = { new Color(0.55f, 0.85f, 1f, 1f), new Color(0.85f, 0.95f, 1f, 1f), Color.white };
+
+    /// <summary>
+    /// Поражение (коснулся врага): куб вытягивается лучом и исчезает в искрах — телепорт.
+    /// Дальше MovingManager.OnHeroDefeated сбрасывает уровень, и куб появляется на старте (PlayTeleportIn).
+    /// </summary>
     IEnumerator Defeat()
     {
-        PixelSfx.Play(Sfx.Edge, 1f, 0.7f);
-        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.6f)
+        PixelSfx.Play(Sfx.Remove, 1f, 0.8f);
+        TeleportSparkles(0.6f);
+        Squash(0.45f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.35f)
         {
-            transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(0f, 90f, Mathf.SmoothStep(0f, 1f, t)));
-            for (int i = 0; i < _renderers.Length; i++)
-                if (_renderers[i] != null) { var c = _baseColors[i]; c.a *= 1f - t * 0.7f; _renderers[i].color = c; }
+            SetAlpha(1f - t);
             yield return null;
         }
+        SetAlpha(0f);
+        yield return new WaitForSeconds(0.15f);
+    }
+
+    /// <summary>Появление на старте после поражения: искры и проявление (вызывает MovingManager).</summary>
+    public void PlayTeleportIn()
+    {
+        if (!_landed) return;
+        StartCoroutine(TeleportInRoutine());
+    }
+
+    IEnumerator TeleportInRoutine()
+    {
+        PixelSfx.Play(Sfx.Pop, 0.8f, 1.3f);
+        TeleportSparkles(0.4f);
+        Squash(0.35f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.3f)
+        {
+            if (IsRunning) { SetAlpha(1f); yield break; } // уже снова нажали Play
+            SetAlpha(t);
+            yield return null;
+        }
+        SetAlpha(1f);
+    }
+
+    void TeleportSparkles(float up)
+    {
+        if (order == null) return;
+        PixelFX.Burst(transform.position + Vector3.up * 0.1f, TeleportColors, 14, 0.5f, up, 0.3f,
+                      order.sortingLayerID, order.sortingOrder + 5, PixelFX.Dot, 1f, 0.6f);
+    }
+
+    /// <summary>Прозрачность всех спрайтов куба (тень — HeroJuice — гаснет сама по альфе тела).</summary>
+    void SetAlpha(float a)
+    {
+        if (_renderers == null) return;
+        for (int i = 0; i < _renderers.Length; i++)
+            if (_renderers[i] != null) { var c = _baseColors[i]; c.a *= a; _renderers[i].color = c; }
     }
 
     /// <summary>Вернуть вид после поражения / удара / щита (Rewind).</summary>
@@ -532,6 +584,7 @@ public class CharacterCode : MonoBehaviour
     /// </summary>
     IEnumerator SlideToTile(OverlayTile target)
     {
+        RaiseOrderFor(target);
         Vector3 start = transform.localPosition;
         Vector3 end = ToLocal(TopOf(target));
         float cells = Mathf.Max(1f, Vector2.Distance(start, end) / 0.18f);
@@ -565,6 +618,7 @@ public class CharacterCode : MonoBehaviour
     /// </summary>
     IEnumerator MoveToTile(OverlayTile target)
     {
+        RaiseOrderFor(target);
         Vector3 start = transform.localPosition;
         Vector3 end = ToLocal(TopOf(target));
         float dist = Vector2.Distance(start, end);
@@ -675,6 +729,7 @@ public class CharacterCode : MonoBehaviour
 
     private IEnumerator JumpToTile(OverlayTile targetTile)
     {
+        RaiseOrderFor(targetTile);
         PixelSfx.Play(Sfx.Jump, 0.8f);
         Vector3 startPos = transform.localPosition;
         Vector3 endPos = ToLocal(TopOf(targetTile));
@@ -697,6 +752,54 @@ public class CharacterCode : MonoBehaviour
         PositionCharacterOnLine(targetTile, collect: true);
     }
 
+    int[] _baseOrders;
+
+    /// <summary>
+    /// Порядок отрисовки куба на клетке. На уровнях с врагами — по глубине клетки (World/SortDepth),
+    /// чтобы куб и враги не перекрывали друг друга как попало; дочерние спрайты куба идут следом
+    /// с теми же сдвигами, что и в сцене. На обычных уровнях — как раньше (клетка + 2).
+    /// </summary>
+    void ApplyOrder(OverlayTile tile)
+    {
+        if (order == null || tile == null) return;
+        var tr = tile.GetComponent<SpriteRenderer>();
+        int legacy = (tr != null ? tr.sortingOrder : 0) + OrderAboveTile;
+        if (EnemyLayer.Active) SetBodyOrder(SortDepth.Character(tile), legacy);
+        else
+        {
+            order.sortingOrder = legacy;
+            // Вернуть дочерним спрайтам их порядок из сцены (если до этого был уровень с врагами).
+            for (int i = 0; i < _renderers.Length; i++)
+                if (_renderers[i] != null && _renderers[i] != order) _renderers[i].sortingOrder = _baseOrders[i];
+        }
+    }
+
+    void SetBodyOrder(int body, int legacy)
+    {
+        order.sortingOrder = body;
+        for (int i = 0; i < _renderers.Length; i++)
+            if (_renderers[i] != null && _renderers[i] != order) _renderers[i].sortingOrder = body + (_baseOrders[i] - legacy);
+    }
+
+    /// <summary>
+    /// Шаг к камере: новый (больший) порядок — сразу, иначе куб на полпути уйдёт под врага на клетке
+    /// перед ним; шаг от камеры — порядок обновится по прибытии (ApplyOrder).
+    /// </summary>
+    void RaiseOrderFor(OverlayTile target)
+    {
+        if (!EnemyLayer.Active || order == null || target == null) return;
+        int to = SortDepth.Character(target);
+        if (to <= order.sortingOrder) return;
+        var tr = target.GetComponent<SpriteRenderer>();
+        SetBodyOrder(to, (tr != null ? tr.sortingOrder : 0) + OrderAboveTile);
+    }
+
+    /// <summary>Пересчитать порядок на текущей клетке (EnemyLayer: уровень с врагами загружен или сброшен).</summary>
+    public void RefreshSortOrder()
+    {
+        if (_tile != null) ApplyOrder(_tile);
+    }
+
     public static Vector3 TopOf(OverlayTile tile)
     {
         if (tile.attachedObject != null && tile.attachedObject.TryGetComponent<MushroomObj>(out var mushroom))
@@ -716,8 +819,7 @@ public class CharacterCode : MonoBehaviour
 
         transform.position = TopOf(tile);
         AirHeight = 0f;
-        var tileRenderer = tile.GetComponent<SpriteRenderer>();
-        if (order != null && tileRenderer != null) order.sortingOrder = tileRenderer.sortingOrder + OrderAboveTile;
+        ApplyOrder(tile);
 
         activeTile = tile;
         _tile = tile;

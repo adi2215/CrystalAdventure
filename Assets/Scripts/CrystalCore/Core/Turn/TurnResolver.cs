@@ -279,9 +279,35 @@ namespace CrystalAdventure.Core
                 }
             }
 
+            // Касание смертельного врага (синий куб, боссы-кубы) — герой погибает.
+            // Считаем по намерениям: обмен местами и одна клетка на двоих — касание всегда; шаг в клетку врага —
+            // касание, если враг остаётся на месте; враг шагнул в клетку героя — если герой остаётся.
+            // Идти следом за уходящим врагом (или он — за героем) можно.
+            var hero = w.Hero;
+            if (hero != null && hero.Alive)
+            {
+                var hm = movers.FirstOrDefault(m => m.E == hero);
+                foreach (var e in w.Entities.Where(x => x.Alive && x.Deadly && x.IsHostile))
+                {
+                    var em = movers.FirstOrDefault(m => m.E == e);
+                    bool heroGoes = hm != null && !hm.Failed;
+                    bool enemyGoes = em != null && !em.Failed;
+                    bool touch =
+                        (hm != null && em != null && hm.To == e.Pos && em.To == hero.Pos) ||   // обмен местами
+                        (hm != null && em != null && hm.To == em.To) ||                        // одна клетка
+                        (hm != null && hm.To == e.Pos && !enemyGoes) ||                        // шагнул в стоящего врага
+                        (em != null && em.To == hero.Pos && !heroGoes);                        // враг шагнул в стоящего героя
+                    if (!touch) continue;
+                    ctx.Emit(new GameEvent(GameEventType.Damaged, EventPhase.Move) { EntityId = hero.Id, TargetId = e.Id, Cell = hero.Pos, Amount = hero.Hp, Info = "touched" });
+                    ctx.Kill(hero, EventPhase.Move, "touched");
+                    break;
+                }
+            }
+
             // Применяем все успешные шаги ОДНОВРЕМЕННО.
             foreach (var m in movers)
             {
+                if (!m.E.Alive) continue; // герой погиб от касания — дальше не идёт
                 if (m.Failed)
                 {
                     ctx.Emit(new GameEvent(GameEventType.Bumped, EventPhase.Move) { EntityId = m.E.Id, Cell = m.From, To = m.To, Dir = m.Dir, Info = m.Why });

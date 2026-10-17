@@ -11,75 +11,86 @@ namespace CrystalAdventure.EditorTools
     /// <summary>
     /// Crystal Adventure → Уровни → Создать уровни с врагами.
     ///
-    /// 1) Создаёт ассеты карточек Attack / Shield / SuperAttack в Assets/Scripts/Methods (если их нет).
-    ///    Картинки у них пустые — иконки рисует UI/CardIcons, кнопки на панели делает SpawnScript.
-    /// 2) Создаёт уровни LevelEnemy1–3, LevelBossForest, LevelBossWinter и дописывает их в конец списка
-    ///    TilemapData (№23–27). Уже существующие ассеты не перезаписываются.
+    /// Создаёт уровни LevelEnemy1–3, LevelBossForest, LevelBossWinter и дописывает их в конец списка
+    /// TilemapData (№23–27). Если уровни уже есть (первая версия врагов) — после подтверждения
+    /// перезаписывает их содержимое на месте: ассет и его место в списке те же, звёзды по номеру уровня
+    /// не съезжают.
     ///
-    /// Решения здесь заданы вручную: старый LevelSolver боёв не знает. Оптимумы проверены перебором
-    /// программ через ядро (CrystalCoreTests/EnemyTests): короче не бывает.
-    ///   1. «Чучело» — атака: R A R R R (5).
-    ///   2. «Патрульный» — 1 сердце, бей первым, в цикле: (R A) × 4 (3).
-    ///   3. «Ледяные пушки» — 3 турели, без щита пройти нельзя: (R S) × 4 (3).
-    ///   4. Wood Mech Guardian — читай рисунок босса: (S S A) × 6 (4). 5 сердец — дроны второй фазы бьют.
-    ///   5. Frost General — 1 сердце: (S A) × 2, A, SA — супер-атака добивает до ледяной брони (5).
+    /// Враги — синие копии куба героя, идут по своему маршруту (LevelEnemy.path, по кругу); коснулся —
+    /// смерть и телепорт на старт. Боссы пока такие же кубы, крупнее и другого цвета. Пушка стреляет
+    /// по линии через ход. Атака / Щит / Супер-атака в этих уровнях не используются (решим позже).
+    ///
+    /// Решения заданы вручную; оптимумы проверены перебором программ через ядро
+    /// (CrystalCoreTests/EnemyTests): короче не бывает, прямой путь — гибель, в край решения не упираются.
+    ///   1. «Синий патруль» — обойти патрульного сверху: (R F B) × 4 (4).
+    ///   2. «Перекрёсток» — переждать: R L, потом R × 4 (цикл только на последнюю R) (4).
+    ///   3. «Ледяные пушки» — по нижнему ряду пушки попадают, по верхнему нет: F, R × 6 (цикл на одну R), B (4).
+    ///   4. Лесной босс — кольцо с кристаллами по углам: идти за боссом, а не навстречу: R × 4, F × 4, L × 4 (6).
+    ///   5. Зимний босс — кольцо, босс идёт по кругу и два хода стоит в углу: навстречу — гибель,
+    ///      следом сразу — упрёшься в стоящего. Переждать (R L), потом R × 4, F × 2, L × 4 (8).
     /// </summary>
     public static class EnemyLevels
     {
         public sealed class Spec
         {
             public string Name, Title;
-            /// <summary>Сверху вниз: '#' клетка, 'S' старт, 'C' кристалл, '.' пусто.</summary>
+            /// <summary>Сверху вниз: '#' клетка, 'S' старт, 'C' кристалл, 'I' лёд, 'P' плита, '.' пусто.</summary>
             public string[] Rows;
             public LevelEnemy[] Enemies;
-            public int HeroHp = 3, SuperAttacks = 1;
+            public int HeroHp = 1, SuperAttacks = 0;
             public ItemType[] Main;
             public List<SolutionCard> Solution;
             public int ExpectedOptimal;
         }
 
-        static readonly ItemType[] Moves = { ItemType.Forward, ItemType.Left, ItemType.Bottom, ItemType.Right };
-        static ItemType[] MovesAnd(params ItemType[] extra) => Moves.Concat(extra).ToArray();
-        static SolutionCard C(ItemType t, int iterations = 1) => new SolutionCard { type = t, iterations = iterations };
-        static LevelEnemy E(int x, int y, string archetype, ItemType facing) => new LevelEnemy { cell = new Vector2Int(x, y), archetype = archetype, facing = facing };
+        static readonly ItemType[] MovesAndWhile = { ItemType.Forward, ItemType.Left, ItemType.Bottom, ItemType.Right, ItemType.While };
+        static SolutionCard C(ItemType t, int iterations = 1, int span = 0) => new SolutionCard { type = t, iterations = iterations, span = span };
+        static LevelEnemy E(int x, int y, string archetype, ItemType facing, string path = "") =>
+            new LevelEnemy { cell = new Vector2Int(x, y), archetype = archetype, facing = facing, path = path };
+
+        const ItemType F = ItemType.Forward, B = ItemType.Bottom, L = ItemType.Left, R = ItemType.Right, W = ItemType.While;
 
         public static Spec[] Specs => new[]
         {
             new Spec
             {
-                Name = "LevelEnemy1", Title = "Чучело", ExpectedOptimal = 5, HeroHp = 3,
-                Rows = new[] { "S###C" }, Enemies = new[] { E(2, 0, "TrainingDummy", ItemType.Left) },
-                Main = MovesAnd(ItemType.Attack),
-                Solution = new List<SolutionCard> { C(ItemType.Right), C(ItemType.Attack), C(ItemType.Right), C(ItemType.Right), C(ItemType.Right) },
-            },
-            new Spec
-            {
-                Name = "LevelEnemy2", Title = "Патрульный", ExpectedOptimal = 3, HeroHp = 1,
-                Rows = new[] { "#####", "S###C" }, Enemies = new[] { E(3, 0, "SmallBallScout", ItemType.Left) },
-                Main = MovesAnd(ItemType.Attack, ItemType.While),
-                Solution = new List<SolutionCard> { C(ItemType.Right), C(ItemType.Attack), C(ItemType.While, 3) },
-            },
-            new Spec
-            {
-                Name = "LevelEnemy3", Title = "Ледяные пушки", ExpectedOptimal = 3, HeroHp = 1,
+                Name = "LevelEnemy1", Title = "Синий патруль", ExpectedOptimal = 4,
                 Rows = new[] { ".###.", "S###C" },
-                Enemies = new[] { E(1, 1, "FrostTurret", ItemType.Bottom), E(2, 1, "FrostTurret", ItemType.Bottom), E(3, 1, "FrostTurret", ItemType.Bottom) },
-                Main = MovesAnd(ItemType.Shield, ItemType.While),
-                Solution = new List<SolutionCard> { C(ItemType.Right), C(ItemType.Shield), C(ItemType.While, 3) },
+                Enemies = new[] { E(3, 0, "Walker", L, "LLRR") },
+                Main = MovesAndWhile,
+                Solution = new List<SolutionCard> { C(R), C(F), C(B), C(W, 3) },
             },
             new Spec
             {
-                Name = "LevelBossForest", Title = "Wood Mech Guardian", ExpectedOptimal = 4, HeroHp = 5,
-                Rows = new[] { ".#S..", ".##.." }, Enemies = new[] { E(2, 0, "WoodMechGuardian", ItemType.Forward) },
-                Main = MovesAnd(ItemType.Attack, ItemType.Shield, ItemType.While),
-                Solution = new List<SolutionCard> { C(ItemType.Shield), C(ItemType.Shield), C(ItemType.Attack), C(ItemType.While, 5) },
+                Name = "LevelEnemy2", Title = "Перекрёсток", ExpectedOptimal = 4,
+                Rows = new[] { "..#..", "..#..", "S###C", "..#..", "..#.." },
+                Enemies = new[] { E(2, 4, "Walker", B, "BBBBFFFF") },
+                Main = MovesAndWhile,
+                Solution = new List<SolutionCard> { C(R), C(L), C(R), C(W, 3, span: 1) },
             },
             new Spec
             {
-                Name = "LevelBossWinter", Title = "Frost General", ExpectedOptimal = 5, HeroHp = 1, SuperAttacks = 1,
-                Rows = new[] { ".###.", ".#S#.", ".###." }, Enemies = new[] { E(2, 0, "FrostBallGeneral", ItemType.Forward) },
-                Main = MovesAnd(ItemType.Attack, ItemType.Shield, ItemType.SuperAttack, ItemType.While),
-                Solution = new List<SolutionCard> { C(ItemType.Shield), C(ItemType.Attack), C(ItemType.While, 1), C(ItemType.Attack), C(ItemType.SuperAttack) },
+                Name = "LevelEnemy3", Title = "Ледяные пушки", ExpectedOptimal = 4,
+                Rows = new[] { "..#.#..", "#######", "S#####C" },
+                Enemies = new[] { E(2, 2, "FrostTurret", B), E(4, 2, "FrostTurret", B) },
+                Main = MovesAndWhile,
+                Solution = new List<SolutionCard> { C(F), C(R), C(W, 5, span: 1), C(B) },
+            },
+            new Spec
+            {
+                Name = "LevelBossForest", Title = "Лесной страж", ExpectedOptimal = 6,
+                Rows = new[] { "C###C", "#...#", "#...#", "#...#", "S###C" },
+                Enemies = new[] { E(4, 2, "BossForest", F, "FFLLLLBBBBRRRRFF") },
+                Main = MovesAndWhile,
+                Solution = new List<SolutionCard> { C(R), C(W, 3), C(F), C(W, 3), C(L), C(W, 3) },
+            },
+            new Spec
+            {
+                Name = "LevelBossWinter", Title = "Ледяной генерал", ExpectedOptimal = 8,
+                Rows = new[] { "C###C", "#...#", "S###C" },
+                Enemies = new[] { E(2, 0, "BossWinter", R, "RRFFWWLLLLBBRR") },
+                Main = MovesAndWhile,
+                Solution = new List<SolutionCard> { C(R), C(L), C(R), C(W, 3, span: 1), C(F), C(W, 1), C(L), C(W, 3) },
             },
         };
 
@@ -95,14 +106,14 @@ namespace CrystalAdventure.EditorTools
                     char ch = spec.Rows[r][x];
                     if (ch == '.') continue;
                     int y = top - r;
-                    var super = ch == 'C' ? SuperBlocks.Crystal : SuperBlocks.None;
+                    var super = ch == 'C' ? SuperBlocks.Crystal : ch == 'I' ? SuperBlocks.Ice : ch == 'P' ? SuperBlocks.Crumbling : SuperBlocks.None;
                     int grass = super == SuperBlocks.Crystal ? DraftLevels.SpecialGrass : ((x * 7 + y * 3) % 3 + 3) % 3;
                     tiles.Add(new TileInfo { position = new Vector3Int(x, y, 0), tile = art(grass), superTileType = super });
                     if (ch == 'S') start = new Vector2Int(x, y);
                 }
             lvl.tiles = tiles;
             lvl.characterPos = LegacyLevelImport.CharacterPosFor(new Vector3Int(start.x, start.y, 0), null);
-            lvl.enemies = spec.Enemies.Select(e => new LevelEnemy { cell = e.cell, archetype = e.archetype, facing = e.facing }).ToList();
+            lvl.enemies = spec.Enemies.Select(e => new LevelEnemy { cell = e.cell, archetype = e.archetype, facing = e.facing, path = e.path }).ToList();
             lvl.heroHp = spec.HeroHp;
             lvl.superAttacks = spec.SuperAttacks;
             lvl.panels = new[] { new Panels { panelName = "Main", commands = spec.Main.Select(item).ToArray() } };
@@ -110,6 +121,7 @@ namespace CrystalAdventure.EditorTools
             lvl.solutionMain = spec.Solution.Select(c => new SolutionCard { type = c.type, iterations = c.iterations, span = c.span, color = c.color }).ToList();
             lvl.solutionF1 = new List<SolutionCard>();
             lvl.solutionF2 = new List<SolutionCard>();
+            lvl.tutorial = null;
         }
 
         const string LevelsFolder = "Assets/Scenes/GameScenes";
@@ -122,7 +134,8 @@ namespace CrystalAdventure.EditorTools
             { ItemType.FunctionOne, DraftLevels.FunctionOneGuid }, { ItemType.While, DraftLevels.WhileGuid },
         };
 
-        /// <summary>Ассет карточки: старые — по GUID, новые (Атака/Щит/Супер-атака) — создаются при первом вызове.</summary>
+        /// <summary>Ассет карточки: старые — по GUID, новые (Атака/Щит/Супер-атака) — создаются при первом вызове
+        /// (сейчас в уровнях не используются).</summary>
         static Item CardAsset(ItemType type)
         {
             if (ExistingCards.TryGetValue(type, out var guid))
@@ -149,25 +162,34 @@ namespace CrystalAdventure.EditorTools
                     "Сцена CollectorLevel не открыта — уровни создам, но в список игры не добавлю. Продолжить?", "Да", "Отмена"))
                 return;
 
+            var existing = Specs.Where(sp => AssetDatabase.LoadAssetAtPath<LevelSt>($"{LevelsFolder}/{sp.Name}.asset") != null).ToList();
+            bool overwrite = existing.Count > 0 && EditorUtility.DisplayDialog("Уровни с врагами",
+                $"Уже есть: {string.Join(", ", existing.Select(sp => sp.Name))}.\n\n" +
+                "Перезаписать их новыми (синие враги-кубы по маршруту, боссы-кубы)? Ассеты и номера уровней останутся те же.",
+                "Перезаписать", "Не трогать");
+
             var sb = new StringBuilder();
             var created = new List<LevelSt>();
             foreach (var spec in Specs)
             {
                 string path = $"{LevelsFolder}/{spec.Name}.asset";
                 var lvl = AssetDatabase.LoadAssetAtPath<LevelSt>(path);
-                if (lvl != null)
+                bool isNew = lvl == null;
+                if (!isNew && !overwrite)
                 {
                     sb.AppendLine($"  =  {spec.Name} «{spec.Title}»: уже есть — не трогаю");
                     created.Add(lvl);
                     continue;
                 }
-                lvl = ScriptableObject.CreateInstance<LevelSt>();
+                if (isNew) lvl = ScriptableObject.CreateInstance<LevelSt>();
+                else Undo.RecordObject(lvl, "Rebuild enemy level");
                 Build(lvl, spec, i => art[i], CardAsset);
-                AssetDatabase.CreateAsset(lvl, path);
+                if (isNew) AssetDatabase.CreateAsset(lvl, path);
+                else EditorUtility.SetDirty(lvl);
                 created.Add(lvl);
 
                 var line = LegacyParityCheck.Check(lvl, data != null ? data.tilemap : null, out var verdict);
-                sb.AppendLine($"  {(verdict == LegacyParityCheck.Verdict.Ok ? "+" : "✗")}  {spec.Name} «{spec.Title}»: {line}");
+                sb.AppendLine($"  {(verdict == LegacyParityCheck.Verdict.Ok ? (isNew ? "+" : "~") : "✗")}  {spec.Name} «{spec.Title}»: {line}");
             }
             AssetDatabase.SaveAssets();
 

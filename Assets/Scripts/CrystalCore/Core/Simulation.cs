@@ -27,6 +27,8 @@ namespace CrystalAdventure.Core
         public int X, Y;
         public Dir Facing = Dir.East;
         public int HpOverride;        // 0 = стандартное HP архетипа
+        /// <summary>Маршрут по кругу (ScriptedBrain): F B L R — шаг, W — стоять. Пусто — мозг по архетипу.</summary>
+        public string Script;
     }
 
     [Serializable]
@@ -58,8 +60,10 @@ namespace CrystalAdventure.Core
                 if (e.Kind == EntityKind.Hero) { w.Spawn(EntityKind.Hero, pos, e.Facing); continue; }
                 if (e.Kind == EntityKind.Crystal) { w.Spawn(EntityKind.Crystal, pos, e.Facing, 1, e.Archetype ?? "Crystal"); continue; }
 
-                var ent = w.Spawn(e.Kind, pos, e.Facing, 1, e.Archetype, EnemyBrains.Create(e.Archetype));
+                var brain = !string.IsNullOrEmpty(e.Script) ? new ScriptedBrain(e.Script) : EnemyBrains.Create(e.Archetype);
+                var ent = w.Spawn(e.Kind, pos, e.Facing, 1, e.Archetype, brain);
                 EnemyBrains.ApplyStats(ent);
+                if (!string.IsNullOrEmpty(e.Script) || EnemyBrains.IsDeadlyOnTouch(e.Archetype)) ent.Deadly = true;
                 if (e.HpOverride > 0) ent.Hp = ent.MaxHp = e.HpOverride;
             }
             if (w.Hero == null) throw new InvalidOperationException($"Level {Id}: no hero");

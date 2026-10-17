@@ -94,7 +94,7 @@ namespace CrystalAdventure.UnityLayer
             {
                 if (e == null || string.IsNullOrEmpty(e.archetype)) continue;
                 // Kind = Enemy; боссом его сделает EnemyBrains.ApplyStats по архетипу.
-                setup.Entities.Add(new EntitySpec { Kind = EntityKind.Enemy, Archetype = e.archetype, X = e.cell.x, Y = e.cell.y, Facing = DirOf(e.facing) });
+                setup.Entities.Add(new EntitySpec { Kind = EntityKind.Enemy, Archetype = e.archetype, X = e.cell.x, Y = e.cell.y, Facing = DirOf(e.facing), Script = e.path });
             }
         }
 

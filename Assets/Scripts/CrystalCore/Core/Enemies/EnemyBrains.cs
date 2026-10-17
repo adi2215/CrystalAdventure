@@ -123,8 +123,43 @@ namespace CrystalAdventure.Core
         }
     }
 
+    /// <summary>
+    /// Враг с заданным маршрутом (синий куб): каждый ход берёт следующую букву по кругу.
+    /// F / B / L / R — шаг вверх / вниз / влево / вправо по сетке (как карточки героя), W или «.» — стоять.
+    /// Если клетки нет — стоит этот ход. В героя НЕ упирается: касание смертельно (Entity.Deadly),
+    /// это решает TurnResolver.MovePhase.
+    /// </summary>
+    public sealed class ScriptedBrain : IEnemyBrain
+    {
+        readonly string _script;
+        int _index;
+
+        public ScriptedBrain(string script) { _script = (script ?? "").Replace(" ", "").ToUpperInvariant(); }
+
+        public Intent Plan(World w, Entity self)
+        {
+            if (_script.Length == 0) return Intent.Wait;
+            char ch = _script[_index % _script.Length];
+            _index++;
+            Dir d;
+            switch (ch)
+            {
+                case 'F': d = Dir.North; break;
+                case 'B': d = Dir.South; break;
+                case 'L': d = Dir.West; break;
+                case 'R': d = Dir.East; break;
+                default: return Intent.Wait;
+            }
+            return w.CanStep(self.Pos, self.Pos.Step(d)) ? Intent.Move(d) : Intent.Wait;
+        }
+    }
+
     public static class EnemyBrains
     {
+        /// <summary>Архетипы, касание которых смертельно (синий куб и боссы-кубы).</summary>
+        public static bool IsDeadlyOnTouch(string archetype) =>
+            archetype == "Walker" || archetype == "BossForest" || archetype == "BossWinter";
+
         /// <summary>Мозг по имени архетипа (имя = префаб во View).</summary>
         public static IEnemyBrain Create(string archetype)
         {

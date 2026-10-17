@@ -18,6 +18,8 @@ namespace CrystalAdventure.Core
         public bool Alive = true;
         public bool Armored;       // ледяная броня: обычная атака не пробивает, нужна Super Attack
         public bool Invulnerable;  // босс закрыл ядро на этот ход
+        /// <summary>Касание смертельно: шагнул в него, он шагнул в тебя, поменялись местами, пришли в одну клетку.</summary>
+        public bool Deadly;
 
         public IEnemyBrain Brain;  // null у героя и кристаллов
         public Intent Planned = Intent.Wait; // намерение врага на СЛЕДУЮЩИЙ ход (показывается игроку)

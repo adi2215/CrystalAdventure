@@ -407,6 +407,18 @@ public class MovingManager : MonoBehaviour
         SyncButtons();
     }
 
+    /// <summary>
+    /// Герой коснулся врага (уровни с врагами): куб уже исчез телепортом — сбрасываем уровень, как Rewind,
+    /// и куб проявляется на старте. Карточки остаются — можно сразу поправить программу.
+    /// </summary>
+    public void OnHeroDefeated()
+    {
+        if (State != RunState.Playing) return;
+        StopRunAndReset();
+        SyncButtons();
+        if (character != null) character.PlayTeleportIn();
+    }
+
     // ============================================================
     //                         REWIND
     // ============================================================
