@@ -49,6 +49,15 @@ public static class SpecialTiles
     public static SuperBlocks At(int x, int y) => Current.TryGetValue(new Vector2Int(x, y), out var b) ? b : SuperBlocks.None;
     public static bool IsIce(OverlayTile t) => t != null && At(t.gridLocation.x, t.gridLocation.y) == SuperBlocks.Ice;
     public static bool IsCrumbling(OverlayTile t) => t != null && At(t.gridLocation.x, t.gridLocation.y) == SuperBlocks.Crumbling;
+    /// <summary>Видимый блок клетки (для волны поля — World/BoardWave).</summary>
+    public static bool TryGetBlock(Vector2Int cell, out GameObject block) => AllBlocks.TryGetValue(cell, out block) && block != null;
+
+    /// <summary>Все клетки с видимыми блоками.</summary>
+    public static IEnumerable<Vector2Int> AllCells => AllBlocks.Keys;
+
+    /// <summary>Плита упала или падает — её блоком сейчас управляет падение, волна его не трогает.</summary>
+    public static bool IsBrokenCell(Vector2Int cell) => Broken.Contains(cell);
+
     /// <summary>Плита уже упала — на её месте пустота (до Rewind).</summary>
     public static bool IsBroken(OverlayTile t) => t != null && Broken.Contains(new Vector2Int(t.gridLocation.x, t.gridLocation.y));
 

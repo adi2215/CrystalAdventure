@@ -47,6 +47,12 @@ namespace CrystalAdventure.Core
         public Cell[] Area;       // для атак по площади (босс, турель). null = клетка перед собой
         public int Damage;
         public string SummonArchetype; // для Summon
+        /// <summary>Прицельный удар босса: клетка, куда он целится (центр волны во View).</summary>
+        public Cell Target;
+        /// <summary>Вид удара для View: "lightning" (молния), "ice" (супер-лёд). null — обычная атака.</summary>
+        public string Style;
+        /// <summary>После удара обычные клетки области становятся льдом (супер-лёд).</summary>
+        public bool FreezeArea;
 
         public static Intent Wait => new Intent { Kind = IntentKind.Wait };
         public static Intent Move(Dir d) => new Intent { Kind = IntentKind.Move, Dir = d };

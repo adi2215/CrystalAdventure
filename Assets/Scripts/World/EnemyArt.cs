@@ -310,6 +310,176 @@ public static class EnemyArt
         }
     }
 
+    // ───────────── ледяной босс арены 8×8 («BossWinter») ─────────────
+
+    /// <summary>
+    /// Ледяной ромб: верх — та же грань, что у куба героя (Sprites/Cube.png), а бока не стоят
+    /// стенками, а сходятся вниз в острый угол. Глаза — как у героя, на правой грани.
+    /// </summary>
+    static readonly string[] FrostDiamondRows =
+    {
+        "..........aaaa..........",
+        "........aabbccaa........",
+        "......aabbddeeccaa......",
+        "....aabbddffffeeccaa....",
+        "..aabbddffffffffeeccaa..",
+        ".abbddffffffffffffeecca.",
+        "abggffffffffffffffffhhia",
+        "abjkggffffffffffffhhlmia",
+        "abjkkkggffffffffhhlllmia",
+        "abjkkkkkggffffhhlllllmia",
+        "abjkkkkkkkgghhlllllllmia",
+        "abjkkkkkkkkklllllllllmia",
+        ".anjkkkkkkkkllllllllmia.",
+        ".anjkkkkkkkkllllllllmia.",
+        "..anjkkkkkkklloollooia..",
+        "..anjkkkkkkklloollooia..",
+        "...anjkkkkkkllllllmia...",
+        "...anjkkkkkkllllllmia...",
+        "....anjkkkkkllllaaia....",
+        "....anjkkkkklllllmia....",
+        ".....anjkkkkllllmia.....",
+        ".....anjkkkkllllmia.....",
+        "......anjkkklllmia......",
+        "......anjkkklllmia......",
+        ".......anjkkllmia.......",
+        ".......anjkkllmia.......",
+        "........anjklmia........",
+        "........anjklmia........",
+        ".........anjmia.........",
+        ".........anjmia.........",
+        "..........ania..........",
+        "..........ania..........",
+        "...........aa...........",
+    };
+
+    static Color C255(int r, int g, int b) => new Color(r / 255f, g / 255f, b / 255f, 1f);
+
+    static readonly Dictionary<char, Color> FrostDiamondPal = new Dictionary<char, Color>
+    {
+        { 'a', C255(26, 30, 58) }, { 'b', C255(232, 248, 255) }, { 'c', C255(120, 190, 240) }, { 'd', C255(150, 205, 245) },
+        { 'e', C255(95, 160, 225) }, { 'f', C255(170, 225, 255) }, { 'g', C255(220, 245, 255) }, { 'h', C255(140, 215, 255) },
+        { 'i', C255(40, 90, 170) }, { 'j', C255(70, 130, 200) }, { 'k', C255(100, 170, 235) }, { 'l', C255(70, 140, 215) },
+        { 'm', C255(45, 100, 180) }, { 'n', C255(85, 150, 220) }, { 'o', C255(240, 255, 255) },
+    };
+
+    /// <summary>Ледяной ромб-босс. Опора — нижний угол (он висит над клеткой, см. EnemyLayer).</summary>
+    public static Sprite FrostDiamond => Get("FrostDiamond", FrostDiamondRows, FrostDiamondPal, new Vector2(0.5f, 0f));
+
+    /// <summary>
+    /// Молния с неба: ломаная белая линия с жёлто-голубой каймой, 15 px шириной, 180 px высотой.
+    /// Опора — нижний конец (бьёт в центр клетки). variant — другой излом (для мерцания).
+    /// </summary>
+    public static Sprite Bolt(int variant)
+    {
+        string key = "Bolt" + variant;
+        if (Cache.TryGetValue(key, out var s) && s != null) return s;
+        const int w = 15, h = 180;
+        var grid = new char[h, w];
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) grid[y, x] = '.';
+        var rnd = new System.Random(17 + variant * 31);
+        int cx = w / 2;
+        for (int y = 0; y < h; y++)   // y = 0 — верх рисунка
+        {
+            if (y % 9 == 0 && y < h - 12) cx = Mathf.Clamp(cx + rnd.Next(-3, 4), 3, w - 4);
+            if (y >= h - 12) cx += cx < w / 2 ? 1 : cx > w / 2 ? -1 : 0; // к низу сходится в центр
+            for (int dx = -2; dx <= 2; dx++)
+            {
+                int x = cx + dx;
+                if (x < 0 || x >= w) continue;
+                grid[y, x] = Mathf.Abs(dx) <= 0 ? 'w' : Mathf.Abs(dx) == 1 ? 'y' : 'b';
+            }
+            // ответвления
+            if (y % 23 == 11 && y < h - 30)
+                for (int k = 1; k <= 5; k++) { int x = cx + (variant % 2 == 0 ? k : -k); if (x >= 0 && x < w && y + k < h) grid[y + k, x] = 'y'; }
+        }
+        var rows = new string[h];
+        for (int y = 0; y < h; y++) { var line = new char[w]; for (int x = 0; x < w; x++) line[x] = grid[y, x]; rows[y] = new string(line); }
+        var pal = new Dictionary<char, Color>
+        {
+            { 'w', Color.white }, { 'y', new Color(1f, 0.95f, 0.55f, 1f) }, { 'b', new Color(0.55f, 0.85f, 1f, 0.7f) },
+        };
+        return Cache[key] = PixelSprites.Make(rows, pal, default, new Vector2(0.5f, 0f));
+    }
+
+    /// <summary>Сосулька супер-льда (летит сверху вниз), опора — острие.</summary>
+    public static Sprite IceShard => Get("IceShard", new[]
+    {
+        "..aaaaa..",
+        ".abbbcca.",
+        "abbbbccca",
+        "abbbbccca",
+        ".abbbcca.",
+        ".abbbcca.",
+        ".abbbcca.",
+        "..abbca..",
+        "..abbca..",
+        "..abbca..",
+        "...abca..",
+        "...abca..",
+        "...aca...",
+        "...aca...",
+        "....a....",
+    }, new Dictionary<char, Color>
+    {
+        { 'a', C255(30, 70, 140) }, { 'b', C255(225, 248, 255) }, { 'c', C255(130, 200, 245) },
+    }, new Vector2(0.5f, 0f));
+
+    /// <summary>Прицел босса — уголки вокруг верхней грани клетки (32×16).</summary>
+    public static Sprite Reticle
+    {
+        get
+        {
+            if (Cache.TryGetValue("Reticle", out var s) && s != null) return s;
+            var rows = new string[16];
+            for (int y = 0; y < 16; y++)
+            {
+                var chars = new char[32];
+                float dy = Mathf.Abs(y + 0.5f - 8f) / 8f;
+                for (int x = 0; x < 32; x++)
+                {
+                    float dx = Mathf.Abs(x + 0.5f - 16f) / 16f;
+                    float d = dx + dy;
+                    bool edge = d <= 1f && d > 0.84f;
+                    bool corner = dx > 0.55f || dy > 0.55f; // только «уголки» у вершин ромба
+                    chars[x] = edge && corner ? 'w' : '.';
+                }
+                rows[y] = new string(chars);
+            }
+            var pal = new Dictionary<char, Color> { { 'w', new Color(1f, 0.95f, 0.6f, 1f) } };
+            return Cache["Reticle"] = PixelSprites.Make(rows, pal, default, new Vector2(0.5f, 0.5f));
+        }
+    }
+
+    /// <summary>Значок «будет молния» над прицелом.</summary>
+    public static Sprite IconBolt => Get("IconBolt", new[]
+    {
+        "....aaa",
+        "...ayya",
+        "..ayya.",
+        ".ayyaaa",
+        "ayyyyya",
+        "aaayya.",
+        "..ayya.",
+        ".ayya..",
+        ".aya...",
+        ".aa....",
+    }, new Dictionary<char, Color> { { 'a', C255(60, 40, 20) }, { 'y', C255(255, 230, 90) } }, new Vector2(0.5f, 0f));
+
+    /// <summary>Значок «будет супер-лёд» над прицелом.</summary>
+    public static Sprite IconFlake => Get("IconFlake", new[]
+    {
+        "....a....",
+        ".a..w..a.",
+        "..w.w.w..",
+        "...www...",
+        "awwwcwwwa",
+        "...www...",
+        "..w.w.w..",
+        ".a..w..a.",
+        "....a....",
+    }, new Dictionary<char, Color> { { 'a', C255(30, 70, 140) }, { 'w', C255(220, 245, 255) }, { 'c', Color.white } }, new Vector2(0.5f, 0f));
+
     public static bool IsBoss(string archetype) => archetype == "WoodMechGuardian" || archetype == "FrostBallGeneral";
 
     public static Sprite Heart => Get("Heart", HeartRows, HeartPal, new Vector2(0.5f, 0.5f));

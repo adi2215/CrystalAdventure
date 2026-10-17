@@ -85,7 +85,7 @@ static class EnemyTests
         { "LevelEnemy2", new[] { "R R R R" } },
         { "LevelEnemy3", new[] { "repeat 6 { R }" } },
         { "LevelBossForest", new[] { "repeat 4 { F } repeat 4 { R } repeat 4 { B }" } },
-        { "LevelBossWinter", new[] { "repeat 4 { R } repeat 2 { F } repeat 4 { L }", "repeat 2 { F } repeat 4 { R } repeat 2 { B }" } },
+        { "LevelBossWinter", new[] { "repeat 7 { R } repeat 7 { F }", "repeat 7 { F } repeat 7 { R }", "repeat 3 { R R F } repeat 7 { F }" } },
     };
 
     public static void RunAll()
@@ -106,7 +106,9 @@ static class EnemyTests
                 T.True(spec.Main.All(t => t != ItemType.Attack && t != ItemType.Shield && t != ItemType.SuperAttack), "no attack cards for now");
                 foreach (var naive in Naive[spec.Name])
                     T.Outcome(Outcome.Lost, Run(lvl, naive));
-                var shorter = Shorter(lvl, spec.Main, spec.ExpectedOptimal - 1);
+                // Арена 8×8 большая: в тестах перебор до 6 карточек (7 проверено разовым перебором при подборе уровня).
+                int depth = spec.Name == "LevelBossWinter" ? Math.Min(6, spec.ExpectedOptimal - 1) : spec.ExpectedOptimal - 1;
+                var shorter = Shorter(lvl, spec.Main, depth);
                 T.True(shorter == null, $"{spec.Name}: shorter solution exists: {shorter}");
             });
         }
@@ -182,6 +184,52 @@ static class EnemyTests
             var plan2 = CoreRunBridge.ToPlan(won, start);
             T.True(plan2[plan2.Count - 1].Won && plan2.Take(plan2.Count - 1).All(p => !p.Won), "won only on the last step");
             T.True(plan2.All(p => !p.HeroDied && p.IsMove), "every step is a move");
+        });
+
+        T.Run("frost boss: every 3rd turn strikes where the hero looks; lightning = cross, dodge by turning", () =>
+        {
+            // Поле 6×3, босс в дальнем углу, кристалл далеко — смотрим только, жив ли герой.
+            var rows = new[] { "#####.", "######", "S####C" };
+            LevelSt F() => Field(rows, new LevelEnemy { cell = new Vector2Int(5, 1), archetype = "BossWinter", facing = ItemType.Left });
+            var straight = Run(F(), "R R R");
+            T.Outcome(Outcome.Lost, straight);
+            T.Eq(3, straight.Turns.Count, "hit on turn 3");
+            var hit = straight.AllEvents.First(e => e.Type == GameEventType.Attacked);
+            T.True(hit.Style == StormBossBrain.Lightning && hit.To == new Cell(3, 0), "lightning aimed at the cell in front of the hero");
+            T.Eq(4, hit.Area.Length, "cross clipped by the field edge (no row below)");
+            var plan = straight.AllEvents.First(e => e.Type == GameEventType.IntentPlanned && e.Style != null);
+            T.True(plan.Area != null && plan.To == hit.To, "telegraphed one turn ahead with the same target");
+            T.Outcome(Outcome.ProgramEnded, Run(F(), "R R F"));   // свернул — мимо
+            T.Outcome(Outcome.ProgramEnded, Run(F(), "R R L"));   // шагнул назад — мимо
+        });
+
+        T.Run("frost boss: super ice = 3x3, only a step back saves; frozen cells turn to ice and you slide", () =>
+        {
+            var rows = new[] { "########", "########", "S######C" };
+            LevelSt F() => Field(rows, new LevelEnemy { cell = new Vector2Int(7, 2), archetype = "BossWinter", facing = ItemType.Left });
+            // Ход 3 — молния (свернули вверх), ход 6 — лёд 3×3 перед героем.
+            T.Outcome(Outcome.Lost, Run(F(), "R R F R R R"));
+            T.Outcome(Outcome.Lost, Run(F(), "R R F R R F"));      // свернуть от льда мало
+            var back = Run(F(), "R R F R R L");
+            T.Outcome(Outcome.ProgramEnded, back);
+            var frozen = back.AllEvents.Where(e => e.Type == GameEventType.Frozen).ToList();
+            T.Eq(9, frozen.Count, "3x3 frozen");
+            T.True(frozen.All(e => back.Final.GetTile(e.Cell).Type == TileType.Ice), "cells are ice now");
+            // Дальше по замёрзшим клеткам герой скользит.
+            var slide = Run(F(), "R R F R R L R");
+            T.True(slide.AllEvents.Any(e => e.Type == GameEventType.Slid && e.EntityId == slide.Final.Hero.Id), "hero slides on frozen cells");
+        });
+
+        T.Run("frost boss: a crystal cell does not freeze; the boss is deadly to touch", () =>
+        {
+            var rows = new[] { "#####C##", "########", "S#######" };
+            var lvl = Field(rows, new LevelEnemy { cell = new Vector2Int(7, 2), archetype = "BossWinter", facing = ItemType.Left });
+            var r = Run(lvl, "R R F R R L");
+            var frozen = r.AllEvents.Where(e => e.Type == GameEventType.Frozen).ToList();
+            T.Eq(8, frozen.Count, "3x3 minus the crystal cell");
+            T.True(frozen.All(e => e.Cell != new Cell(5, 2)), "crystal cell stays ground");
+            var touch = Run(Field(new[] { "S#C" }, new LevelEnemy { cell = new Vector2Int(1, 0), archetype = "BossWinter", facing = ItemType.Left }), "R");
+            T.Outcome(Outcome.Lost, touch);
         });
 
         T.Run("cards Attack / Shield / SuperAttack still map to core actions (not used in levels yet)", () =>

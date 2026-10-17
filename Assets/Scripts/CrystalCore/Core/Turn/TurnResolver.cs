@@ -384,8 +384,26 @@ namespace CrystalAdventure.Core
                 var ev = ctx.Emit(GameEventType.Attacked, e);
                 ev.Area = area;
                 ev.Dir = it.Dir;
+                if (it.Style != null) { ev.Style = it.Style; ev.To = it.Target; }
                 if (area.Contains(hero.Pos))
                     ctx.Damage(hero, it.Damage <= 0 ? 1 : it.Damage, ctx.Phase, hero.Pos, e);
+                if (it.FreezeArea) FreezeCells(ctx, e, area);
+            }
+        }
+
+        /// <summary>
+        /// Супер-лёд: обычные клетки области становятся льдом (дальше по ним скользят).
+        /// Клетки с кристаллом не замерзают — иначе по ним проскальзывали бы мимо кристалла.
+        /// </summary>
+        static void FreezeCells(TurnContext ctx, Entity by, Cell[] area)
+        {
+            var w = ctx.World;
+            foreach (var c in area)
+            {
+                var t = w.GetTile(c);
+                if (t == null || t.Gone || t.Type != TileType.Ground || w.CrystalAt(c) != null) continue;
+                t.Type = TileType.Ice;
+                ctx.Emit(new GameEvent(GameEventType.Frozen, ctx.Phase) { EntityId = by.Id, Cell = c });
             }
         }
 
@@ -453,6 +471,7 @@ namespace CrystalAdventure.Core
                 ev.Dir = e.Planned.Dir;
                 ev.Info = e.Planned.Kind.ToString();
                 ev.Area = DangerCells(e, e.Planned);
+                if (e.Planned.Style != null) { ev.Style = e.Planned.Style; ev.To = e.Planned.Target; }
             }
         }
 

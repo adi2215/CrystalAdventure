@@ -54,6 +54,8 @@ namespace CrystalAdventure.Core
         public int Amount;
         public Cell[] Area;
         public string Info;
+        /// <summary>Вид удара (Intent.Style) — у IntentPlanned и Attacked; цель удара тогда в To.</summary>
+        public string Style;
 
         public GameEvent(GameEventType type, EventPhase phase) { Type = type; Phase = phase; }
 

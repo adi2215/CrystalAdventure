@@ -32,6 +32,8 @@ public static class EnemyLayer
         public SpriteRenderer Main;
         public Sprite Front, Back;
         public Vector2Int Cell;
+        /// <summary>Ледяной ромб висит над клеткой и покачивается — его не двигают шаги и волна.</summary>
+        public bool Hovers;
     }
 
     static readonly Dictionary<int, View> Views = new Dictionary<int, View>();
@@ -47,6 +49,8 @@ public static class EnemyLayer
     static readonly Color BossForestTint = new Color(0.55f, 1f, 0.45f, 1f);
     static readonly Color BossWinterTint = new Color(0.8f, 0.55f, 1f, 1f);
     const float BossScale = 1.35f;
+    const float DiamondScale = 1.5f;
+    const float DiamondHover = 0.06f;
 
     /// <summary>На уровне есть враги — им управляет этот слой.</summary>
     public static bool Active { get; private set; }
@@ -103,6 +107,7 @@ public static class EnemyLayer
         if (Host != null) foreach (var c in Running) if (c != null) Host.StopCoroutine(c);
         Running.Clear();
         _busy = 0;
+        BoardWave.ResetAll(); // волну могли прервать на середине
     }
 
     // ================================================================ ход
@@ -140,7 +145,14 @@ public static class EnemyLayer
         foreach (var e in turn.Events)
         {
             if (e.EntityId == HeroId && e.Type != GameEventType.TileChanged) continue;
-            if (e.Type == GameEventType.Attacked && Views.TryGetValue(e.EntityId, out var a))
+            if (e.Type == GameEventType.Attacked && e.Style != null && Views.TryGetValue(e.EntityId, out var boss))
+            {
+                // Молния / супер-лёд ледяного босса: удар, частицы, волна по полю, замёрзшие клетки.
+                var frozen = turn.Events.Where(f => f.Type == GameEventType.Frozen && f.EntityId == e.EntityId)
+                                        .Select(f => new Vector2Int(f.Cell.X, f.Cell.Y)).ToList();
+                Track(Strike(boss, e, frozen));
+            }
+            else if (e.Type == GameEventType.Attacked && Views.TryGetValue(e.EntityId, out var a))
             {
                 Face(a, e.Dir);
                 Track(Recoil(a));
@@ -200,7 +212,10 @@ public static class EnemyLayer
         return t != null ? SortDepth.Character(t) : SortDepth.Character(0, c.x, c.y);
     }
 
-    static bool IsCube(string archetype) => archetype == "Walker" || archetype == "BossForest" || archetype == "BossWinter";
+    static bool IsCube(string archetype) => archetype == "Walker" || archetype == "BossForest";
+
+    /// <summary>Ледяной босс арены 8×8 (StormBossBrain) — ромб, а не копия куба.</summary>
+    static bool IsDiamond(string archetype) => archetype == "BossWinter";
 
     static void Spawn(int id, string archetype, Vector2Int cell, Dir facing)
     {
@@ -241,9 +256,15 @@ public static class EnemyLayer
         }
         else
         {
-            // Пушка и прочие — пиксель-арт.
+            // Пушка, ледяной ромб и прочие — пиксель-арт.
             var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = EnemyArt.For(archetype);
+            sr.sprite = IsDiamond(archetype) ? EnemyArt.FrostDiamond : EnemyArt.For(archetype);
+            if (IsDiamond(archetype) && hero != null)
+            {
+                go.transform.localScale = Vector3.one * Mathf.Abs(hero.transform.localScale.z) * DiamondScale;
+                go.transform.position = WorldOf(cell) + Vector3.up * DiamondHover;
+                v.Hovers = true;
+            }
             if (hero != null && hero.MainRenderer != null) { sr.sortingLayerID = hero.MainRenderer.sortingLayerID; sr.sharedMaterial = hero.MainRenderer.sharedMaterial; }
             v.Parts = new[] { sr };
             v.Offsets = new[] { 0 };
@@ -254,6 +275,7 @@ public static class EnemyLayer
         SetOrder(v, DepthAt(cell));
         Face(v, facing);
         Track(PopIn(v));
+        if (v.Hovers && Host != null) Running.Add(Host.StartCoroutine(Hover(v)));
     }
 
     static void SetOrder(View v, int order)
@@ -268,6 +290,7 @@ public static class EnemyLayer
     static void Face(View v, Dir d)
     {
         if (v.Front != null) CharacterCode.ApplyFacing(v.Parts, v.Main, v.Front, v.Back, Arrow(d)); // как куб
+        else if (v.Hovers) return;                                                              // ромб всегда смотрит на нас
         else if (v.Main != null) v.Main.flipX = d == Dir.West || d == Dir.North;               // пушка
     }
 
@@ -282,7 +305,10 @@ public static class EnemyLayer
         {
             if (e.Type != GameEventType.IntentPlanned) continue;
             if (e.Area != null)
-                foreach (var c in e.Area) AddMarker(root, new Vector2Int(c.X, c.Y));         // выстрел пушки
+            {
+                foreach (var c in e.Area) AddMarker(root, new Vector2Int(c.X, c.Y));         // выстрел пушки / удар босса
+                if (e.Style != null) AddReticle(root, new Vector2Int(e.To.X, e.To.Y), e.Style, e.EntityId);
+            }
             else if (e.Info == IntentKind.Move.ToString() && Views.TryGetValue(e.EntityId, out var v))
             {
                 var o = e.Dir.Offset();
@@ -321,6 +347,153 @@ public static class EnemyLayer
             if (TileAt(cell) == null) continue;
             PixelFX.Burst(WorldOf(cell) + Vector3.up * 0.04f, new[] { new Color(1f, 0.35f, 0.25f, 1f), new Color(1f, 0.8f, 0.4f, 1f) },
                           4, 0.25f, 0.08f, 0.8f, sr.sortingLayerID, DepthAt(cell) + 3, PixelFX.Dot, 0.8f, 0.35f);
+        }
+    }
+
+    // ───────────── ледяной босс: прицел и удар ─────────────
+
+    /// <summary>
+    /// Прицел босса на клетке удара: мигающие уголки и значок над ними (молния / снежинка),
+    /// а сам ромб «заряжается» — вспыхивает. Видно ещё до хода, в который он ударит.
+    /// </summary>
+    static void AddReticle(Transform root, Vector2Int cell, string style, int bossId)
+    {
+        var heroSr = Hero != null ? Hero.MainRenderer : null;
+        int layer = heroSr != null ? heroSr.sortingLayerID : 0;
+        var tile = TileAt(cell);
+        Vector3 at = WorldOf(cell); // клетка может быть за краем поля — прицел всё равно рисуем
+        int order = tile != null ? SortDepth.Marker(tile) + 1 : SortDepth.Character(0, cell.x, cell.y);
+
+        var ret = new GameObject("Reticle").AddComponent<SpriteRenderer>();
+        ret.transform.SetParent(root, false);
+        ret.transform.position = at + new Vector3(0f, 0.04f, 0f);
+        ret.sprite = EnemyArt.Reticle;
+        ret.sortingLayerID = layer;
+        ret.sortingOrder = order;
+        Markers.Add(ret.gameObject);
+
+        var icon = new GameObject("StrikeIcon").AddComponent<SpriteRenderer>();
+        icon.transform.SetParent(root, false);
+        icon.sprite = style == StormBossBrain.Ice ? EnemyArt.IconFlake : EnemyArt.IconBolt;
+        icon.sortingLayerID = layer;
+        icon.sortingOrder = (tile != null ? SortDepth.Character(tile) : SortDepth.Character(0, cell.x, cell.y)) + 400; // над персонажами — значок «что будет»
+        icon.transform.localScale = Vector3.one * 1.5f;
+        Markers.Add(icon.gameObject);
+
+        if (Host != null) Running.Add(Host.StartCoroutine(ReticlePulse(ret, icon, at + new Vector3(0f, 0.3f, 0f))));
+        if (Host != null && Views.TryGetValue(bossId, out var boss) && boss.Main != null) Running.Add(Host.StartCoroutine(Charge(boss, style)));
+    }
+
+    static IEnumerator ReticlePulse(SpriteRenderer ret, SpriteRenderer icon, Vector3 iconHome)
+    {
+        for (float t = 0f; ret != null && icon != null; t += Time.deltaTime)
+        {
+            ret.color = new Color(1f, 1f, 1f, Mathf.Sin(t * 10f) > 0f ? 1f : 0.45f);
+            icon.transform.position = iconHome + new Vector3(0f, Mathf.Round(Mathf.Sin(t * 5f) * 2f) / 100f, 0f);
+            yield return null;
+        }
+    }
+
+    static IEnumerator Charge(View boss, string style)
+    {
+        var glow = style == StormBossBrain.Ice ? new Color(0.75f, 0.95f, 1f, 1f) : new Color(1f, 0.95f, 0.6f, 1f);
+        if (boss.Main != null)
+            PixelFX.Burst(boss.Go.transform.position + Vector3.up * 0.2f, new[] { glow, Color.white }, 6, 0.3f, 0.25f, 0.2f,
+                          boss.Main.sortingLayerID, boss.Main.sortingOrder + 1, PixelFX.Dot, 0.8f, 0.4f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.3f)
+        {
+            if (boss.Main == null) yield break;
+            boss.Main.color = Color.Lerp(glow, Color.white, t);
+            yield return null;
+        }
+        if (boss.Main != null) boss.Main.color = Color.white;
+    }
+
+    static readonly Color[] BoltColors = { Color.white, new Color(1f, 0.95f, 0.55f, 1f), new Color(0.6f, 0.85f, 1f, 1f) };
+    static readonly Color[] IceColors = { Color.white, new Color(0.8f, 0.95f, 1f, 1f), new Color(0.5f, 0.8f, 1f, 1f) };
+
+    /// <summary>
+    /// Удар ледяного босса: молния с неба (мерцает) или сосулька падает в клетку — вспышка частиц,
+    /// клетки области замерзают (супер-лёд), по полю расходится волна (World/BoardWave).
+    /// </summary>
+    static IEnumerator Strike(View boss, GameEvent e, List<Vector2Int> frozen)
+    {
+        var heroSr = Hero != null ? Hero.MainRenderer : null;
+        int layer = heroSr != null ? heroSr.sortingLayerID : 0;
+        var target = new Vector2Int(e.To.X, e.To.Y);
+        Vector3 at = WorldOf(target);
+        bool ice = e.Style == StormBossBrain.Ice;
+        const int SkyOrder = 1000; // молния и сосулька — поверх всего поля
+
+        var fx = new GameObject(ice ? "IceShard" : "Lightning").AddComponent<SpriteRenderer>();
+        fx.transform.SetParent(Root, false);
+        fx.sortingLayerID = layer;
+        fx.sortingOrder = SkyOrder;
+        if (ice)
+        {
+            // Сосулька падает сверху в центр клетки.
+            fx.sprite = EnemyArt.IceShard;
+            fx.transform.localScale = Vector3.one * 2f;
+            PixelSfx.Play(Sfx.Whoosh, 0.6f, 1.4f);
+            Vector3 from = at + Vector3.up * 1.4f;
+            for (float t = 0f; t < 1f; t += Time.deltaTime / 0.25f)
+            {
+                fx.transform.position = Snap(Vector3.Lerp(from, at, t * t));
+                yield return null;
+            }
+            Object.Destroy(fx.gameObject);
+            PixelSfx.Play(Sfx.Land, 1f, 0.6f);
+        }
+        else
+        {
+            // Молния: три кадра разного излома.
+            PixelSfx.Play(Sfx.Edge, 1f, 0.5f);
+            fx.transform.position = at;
+            fx.transform.localScale = Vector3.one * 1.5f;
+            for (int i = 0; i < 4; i++)
+            {
+                fx.sprite = EnemyArt.Bolt(i % 3);
+                fx.color = i % 2 == 0 ? Color.white : new Color(1f, 1f, 1f, 0.6f);
+                yield return new WaitForSeconds(0.06f);
+            }
+            Object.Destroy(fx.gameObject);
+        }
+
+        // Вспышка частиц по всей области удара, в центре — сильнее.
+        var colors = ice ? IceColors : BoltColors;
+        PixelFX.Burst(at + Vector3.up * 0.05f, colors, 16, 0.9f, 0.5f, 1.4f, layer, SkyOrder - 1, PixelFX.Dot, 1.2f, 0.6f);
+        foreach (var c in e.Area ?? new Cell[0])
+        {
+            var cell = new Vector2Int(c.X, c.Y);
+            if (cell == target || TileAt(cell) == null) continue;
+            PixelFX.Burst(WorldOf(cell) + Vector3.up * 0.04f, colors, 4, 0.35f, 0.2f, 1f, layer, DepthAt(cell) + 3, PixelFX.Dot, 0.8f, 0.4f);
+        }
+        foreach (var cell in frozen) SpecialTiles.Freeze(cell);
+
+        // Волна по полю: герой и враги на клетках качаются вместе с ними.
+        yield return BoardWave.Play(target, ice ? 0.05f : 0.07f, WaveRiders);
+    }
+
+    /// <summary>Кто стоит на клетке (для волны): герой и враги, кроме висящего ромба.</summary>
+    static IEnumerable<Transform> WaveRiders(Vector2Int cell)
+    {
+        var hero = Hero;
+        if (hero != null && hero.activeTile != null &&
+            hero.activeTile.gridLocation.x == cell.x && hero.activeTile.gridLocation.y == cell.y)
+            yield return hero.transform;
+        foreach (var v in Views.Values)
+            if (!v.Hovers && v.Go != null && v.Cell == cell) yield return v.Go.transform;
+    }
+
+    /// <summary>Ромб висит над клеткой и медленно покачивается (на целые пиксели).</summary>
+    static IEnumerator Hover(View v)
+    {
+        if (v.Go == null) yield break;
+        var home = v.Go.transform.position;
+        for (float t = 0f; v.Go != null; t += Time.deltaTime)
+        {
+            v.Go.transform.position = home + new Vector3(0f, Mathf.Round(Mathf.Sin(t * 2.2f) * 3f) / 100f, 0f);
+            yield return null;
         }
     }
 
