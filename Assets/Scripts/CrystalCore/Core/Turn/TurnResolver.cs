@@ -375,6 +375,17 @@ namespace CrystalAdventure.Core
                 }
             }
 
+            // Шипы змеи, которые ещё торчат: наступил — смерть.
+            if (hero.Alive)
+            {
+                var under = w.GetTile(hero.Pos);
+                if (under != null && under.Hazard > 0)
+                {
+                    ctx.Emit(new GameEvent(GameEventType.Damaged, ctx.Phase) { EntityId = hero.Id, Cell = hero.Pos, Amount = hero.Hp, Info = SnakeBrain.Spikes });
+                    ctx.Kill(hero, ctx.Phase, SnakeBrain.Spikes);
+                }
+            }
+
             // Атаки врагов — по клеткам, которые они заранее показали.
             foreach (var kv in intents.Skip(1))
             {
@@ -388,6 +399,32 @@ namespace CrystalAdventure.Core
                 if (area.Contains(hero.Pos))
                     ctx.Damage(hero, it.Damage <= 0 ? 1 : it.Damage, ctx.Phase, hero.Pos, e);
                 if (it.FreezeArea) FreezeCells(ctx, e, area);
+                if (it.Style == SnakeBrain.Spikes) RaiseSpikes(ctx, e, area);
+                if (it.Style == SnakeBrain.Quake) Collapse(ctx, e, area);
+            }
+        }
+
+        /// <summary>Шипы змеи: торчат в ход удара и ещё SnakeBrain.SpikeLinger ходов.</summary>
+        static void RaiseSpikes(TurnContext ctx, Entity by, Cell[] area)
+        {
+            foreach (var c in area)
+            {
+                var t = ctx.World.GetTile(c);
+                if (t == null || t.Gone) continue;
+                t.Hazard = SnakeBrain.SpikeLinger + 1; // −1 в конце этого хода (TilesPhase)
+                ctx.Emit(new GameEvent(GameEventType.TileChanged, ctx.Phase) { EntityId = by.Id, Cell = c, Info = "spikes_up" });
+            }
+        }
+
+        /// <summary>Удар хвостом: клетки проваливаются насовсем (дальше по ним не пройти — край).</summary>
+        static void Collapse(TurnContext ctx, Entity by, Cell[] area)
+        {
+            foreach (var c in area)
+            {
+                var t = ctx.World.GetTile(c);
+                if (t == null || t.Gone || ctx.World.SolidAt(c) != null && ctx.World.SolidAt(c) != ctx.World.Hero) continue;
+                t.Gone = true;
+                ctx.Emit(new GameEvent(GameEventType.TileChanged, ctx.Phase) { EntityId = by.Id, Cell = c, Info = "collapsed" });
             }
         }
 
@@ -416,6 +453,11 @@ namespace CrystalAdventure.Core
             // Фиксированный порядок обхода — результат всегда одинаковый.
             foreach (var kv in w.Tiles.OrderBy(k => k.Key.Y).ThenBy(k => k.Key.X).ToList())
                 TileBehaviors.Get(kv.Value.Type).OnTurnEnd(ctx, kv.Key, kv.Value);
+
+            // Шипы змеи опускаются.
+            foreach (var kv in w.Tiles.OrderBy(k => k.Key.Y).ThenBy(k => k.Key.X))
+                if (kv.Value.Hazard > 0 && --kv.Value.Hazard == 0)
+                    ctx.Emit(new GameEvent(GameEventType.TileChanged, ctx.Phase) { Cell = kv.Key, Info = "spikes_down" });
 
             if (w.RecomputePlates())
                 ctx.Emit(new GameEvent(GameEventType.ChannelChanged, ctx.Phase) { Info = "plates" });

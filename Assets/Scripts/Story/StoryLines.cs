@@ -46,9 +46,11 @@ public static class StoryLines
         {
             "LevelBossForest", new[]
             {
-                Ela("Careful, Cris! A shard turned the Forest Guardian wild!"),
-                new Line("Forest Guardian", "GRRR... MY... FOREST..."),
-                Ela("Don't bump into it. Walk behind it, never toward it!"),
+                Ela("Careful, Cris! A shard turned the Forest Guardian into a root snake!"),
+                new Line("Forest Guardian", "SSSS... MY... FOREST..."),
+                Ela("Don't touch any part of it. Sneak in right behind its tail!"),
+                Ela("When it stops, spikes grow in front of its head..."),
+                Ela("...and its tail breaks the ground for good. Watch the red tiles!"),
             }
         },
         {

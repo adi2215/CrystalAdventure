@@ -21,7 +21,7 @@ public class LevelSt : ScriptableObject
     public TutorialScript tutorial;
 
     [Header("Враги (ядро CrystalCore)")]
-    [Tooltip("Враги уровня. Archetype: Walker (синий куб по маршруту), BossForest / BossWinter (большие кубы по маршруту), FrostTurret (пушка). Касание кубов — смерть.")]
+    [Tooltip("Враги уровня. Archetype: Walker (синий куб по маршруту), BossForest (с body > 0 — змея из кубиков: шипы и удар хвостом), BossWinter (ледяной ромб, без маршрута), FrostTurret (пушка). Касание — смерть.")]
     public List<LevelEnemy> enemies = new List<LevelEnemy>();
     [Tooltip("Здоровье героя на уровне с врагами (пока у героя одна жизнь)")] [Min(1)] public int heroHp = 1;
     [Tooltip("Сколько карточек «Супер-атака» сработает за уровень")] [Min(0)] public int superAttacks = 1;
@@ -75,6 +75,8 @@ public class LevelEnemy
     public ItemType facing = ItemType.Left;
     [Tooltip("Маршрут по кругу: F B L R — шаг вверх/вниз/влево/вправо по сетке (как карточки), W — стоять. Например RRLL.")]
     public string path = "";
+    [Tooltip("Змея (BossForest): сколько кубиков тела за головой. Тело стоит на клетках, которые голова прошла по маршруту до старта.")]
+    [Min(0)] public int body;
 }
 
 [System.Serializable]

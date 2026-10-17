@@ -29,6 +29,8 @@ namespace CrystalAdventure.Core
         public int HpOverride;        // 0 = стандартное HP архетипа
         /// <summary>Маршрут по кругу (ScriptedBrain): F B L R — шаг, W — стоять. Пусто — мозг по архетипу.</summary>
         public string Script;
+        /// <summary>Змея: сколько сегментов тела за головой (стоят на клетках, пройденных по маршруту до старта).</summary>
+        public int Body;
     }
 
     [Serializable]
@@ -60,11 +62,25 @@ namespace CrystalAdventure.Core
                 if (e.Kind == EntityKind.Hero) { w.Spawn(EntityKind.Hero, pos, e.Facing); continue; }
                 if (e.Kind == EntityKind.Crystal) { w.Spawn(EntityKind.Crystal, pos, e.Facing, 1, e.Archetype ?? "Crystal"); continue; }
 
-                var brain = !string.IsNullOrEmpty(e.Script) ? new ScriptedBrain(e.Script) : EnemyBrains.Create(e.Archetype);
+                bool snake = e.Body > 0 && !string.IsNullOrEmpty(e.Script);
+                IEnemyBrain brain = snake ? new SnakeBrain(e.Script, pos)
+                                  : !string.IsNullOrEmpty(e.Script) ? new ScriptedBrain(e.Script) : EnemyBrains.Create(e.Archetype);
                 var ent = w.Spawn(e.Kind, pos, e.Facing, 1, e.Archetype, brain);
                 EnemyBrains.ApplyStats(ent);
                 if (!string.IsNullOrEmpty(e.Script) || EnemyBrains.IsDeadlyOnTouch(e.Archetype)) ent.Deadly = true;
                 if (e.HpOverride > 0) ent.Hp = ent.MaxHp = e.HpOverride;
+                if (snake)
+                {
+                    // Тело — сразу за головой (Id по порядку: каждый сегмент планирует после ведущего).
+                    var leader = ent;
+                    foreach (var c in SnakeBrain.BodyCells(e.Script, pos, e.Body))
+                    {
+                        var seg = w.Spawn(EntityKind.Enemy, c, DirExtensions.Towards(c, leader.Pos), 1, EnemyBrains.SnakeBodyArchetype, new SnakeBodyBrain(leader));
+                        seg.Deadly = true;
+                        leader = seg;
+                    }
+                    ((SnakeBrain)brain).Tail = leader;
+                }
             }
             if (w.Hero == null) throw new InvalidOperationException($"Level {Id}: no hero");
             return w;

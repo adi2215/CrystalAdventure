@@ -71,7 +71,7 @@ public class SolutionCard
 }
 
 [System.Serializable] public class TileInfo { public Vector3Int position; public TileBase tile; public SuperBlocks superTileType = SuperBlocks.None; public TileColor color = TileColor.None; }
-[System.Serializable] public class LevelEnemy { public Vector2Int cell; public string archetype = "Walker"; public ItemType facing = ItemType.Left; public string path = ""; }
+[System.Serializable] public class LevelEnemy { public Vector2Int cell; public string archetype = "Walker"; public ItemType facing = ItemType.Left; public string path = ""; public int body; }
 [System.Serializable] public class Panels { public string panelName; public Item[] commands; }
 public enum TileColor { None, Red, Blue, Yellow }
 public enum SuperBlocks { None, Mushroom, Crystal, Ice, Crumbling }

@@ -48,6 +48,8 @@ public static class EnemyLayer
     static readonly Color WalkerTint = new Color(0.45f, 0.62f, 1f, 1f);
     static readonly Color BossForestTint = new Color(0.55f, 1f, 0.45f, 1f);
     static readonly Color BossWinterTint = new Color(0.8f, 0.55f, 1f, 1f);
+    static readonly Color SnakeBodyTint = new Color(0.36f, 0.78f, 0.36f, 1f);
+    const float SnakeHeadScale = 1.15f, SnakeBodyScale = 0.85f;
     const float BossScale = 1.35f;
     const float DiamondScale = 1.5f;
     const float DiamondHover = 0.06f;
@@ -99,6 +101,8 @@ public static class EnemyLayer
     {
         foreach (var v in Views.Values) if (v.Go != null) Object.Destroy(v.Go);
         Views.Clear();
+        foreach (var sp in SpikeViews.Values) if (sp != null) Object.Destroy(sp);
+        SpikeViews.Clear();
         ClearMarkers();
     }
 
@@ -148,9 +152,20 @@ public static class EnemyLayer
             if (e.Type == GameEventType.Attacked && e.Style != null && Views.TryGetValue(e.EntityId, out var boss))
             {
                 // Молния / супер-лёд ледяного босса: удар, частицы, волна по полю, замёрзшие клетки.
-                var frozen = turn.Events.Where(f => f.Type == GameEventType.Frozen && f.EntityId == e.EntityId)
-                                        .Select(f => new Vector2Int(f.Cell.X, f.Cell.Y)).ToList();
-                Track(Strike(boss, e, frozen));
+                if (e.Style == SnakeBrain.Spikes || e.Style == SnakeBrain.Quake)
+                {
+                    // Лесная змея: шипы перед головой / удар хвостом — клетки берём из событий этого хода.
+                    string info = e.Style == SnakeBrain.Spikes ? "spikes_up" : "collapsed";
+                    var cells = turn.Events.Where(f => f.Type == GameEventType.TileChanged && f.Info == info && f.EntityId == e.EntityId)
+                                           .Select(f => new Vector2Int(f.Cell.X, f.Cell.Y)).ToList();
+                    Track(SnakeStrike(boss, e, cells));
+                }
+                else
+                {
+                    var frozen = turn.Events.Where(f => f.Type == GameEventType.Frozen && f.EntityId == e.EntityId)
+                                            .Select(f => new Vector2Int(f.Cell.X, f.Cell.Y)).ToList();
+                    Track(Strike(boss, e, frozen));
+                }
             }
             else if (e.Type == GameEventType.Attacked && Views.TryGetValue(e.EntityId, out var a))
             {
@@ -159,6 +174,8 @@ public static class EnemyLayer
                 FlashArea(e.Area);
                 PixelSfx.Play(Sfx.Remove, 0.6f, 1.1f);
             }
+            else if (e.Type == GameEventType.TileChanged && e.Info == "spikes_down")
+                Track(LowerSpikes(new Vector2Int(e.Cell.X, e.Cell.Y)));
             else if (e.Type == GameEventType.TileChanged && e.Info == "crumbled")
             {
                 // Плита рассыпалась под врагом (под героем её роняет CharacterCode; повторный вызов безопасен).
@@ -212,7 +229,7 @@ public static class EnemyLayer
         return t != null ? SortDepth.Character(t) : SortDepth.Character(0, c.x, c.y);
     }
 
-    static bool IsCube(string archetype) => archetype == "Walker" || archetype == "BossForest";
+    static bool IsCube(string archetype) => archetype == "Walker" || archetype == "BossForest" || archetype == EnemyBrains.SnakeBodyArchetype;
 
     /// <summary>Ледяной босс арены 8×8 (StormBossBrain) — ромб, а не копия куба.</summary>
     static bool IsDiamond(string archetype) => archetype == "BossWinter";
@@ -231,9 +248,12 @@ public static class EnemyLayer
         {
             // Копия куба героя: все его спрайты (тело, глаза…), кроме тени — как у призрака-подсказки.
             // Масштаб — по z: x и y у куба «дышат» (HeroJuice), z — нет.
-            go.transform.localScale = Vector3.one * Mathf.Abs(hero.transform.localScale.z) * (archetype == "Walker" ? 1f : BossScale);
+            float scale = archetype == "Walker" ? 1f
+                        : archetype == EnemyBrains.SnakeBodyArchetype ? SnakeBodyScale
+                        : archetype == "BossForest" && HasSnakeBody() ? SnakeHeadScale : BossScale;
+            go.transform.localScale = Vector3.one * Mathf.Abs(hero.transform.localScale.z) * scale;
             var src = hero.GetComponentsInChildren<SpriteRenderer>(true);
-            var tint = archetype == "BossForest" ? BossForestTint : archetype == "BossWinter" ? BossWinterTint : WalkerTint;
+            var tint = archetype == "BossForest" ? BossForestTint : archetype == EnemyBrains.SnakeBodyArchetype ? SnakeBodyTint : WalkerTint;
             v.Parts = new SpriteRenderer[src.Length];
             v.Offsets = new int[src.Length];
             for (int i = 0; i < src.Length; i++)
@@ -309,7 +329,7 @@ public static class EnemyLayer
                 foreach (var c in e.Area) AddMarker(root, new Vector2Int(c.X, c.Y));         // выстрел пушки / удар босса
                 if (e.Style != null) AddReticle(root, new Vector2Int(e.To.X, e.To.Y), e.Style, e.EntityId);
             }
-            else if (e.Info == IntentKind.Move.ToString() && Views.TryGetValue(e.EntityId, out var v))
+            else if (e.Info == IntentKind.Move.ToString() && Views.TryGetValue(e.EntityId, out var v) && v.Archetype != EnemyBrains.SnakeBodyArchetype)
             {
                 var o = e.Dir.Offset();
                 AddMarker(root, new Vector2Int(v.Cell.x + o.X, v.Cell.y + o.Y));             // следующий шаг врага
@@ -374,7 +394,9 @@ public static class EnemyLayer
 
         var icon = new GameObject("StrikeIcon").AddComponent<SpriteRenderer>();
         icon.transform.SetParent(root, false);
-        icon.sprite = style == StormBossBrain.Ice ? EnemyArt.IconFlake : EnemyArt.IconBolt;
+        icon.sprite = style == StormBossBrain.Ice ? EnemyArt.IconFlake
+                    : style == SnakeBrain.Spikes ? EnemyArt.IconSpikes
+                    : style == SnakeBrain.Quake ? EnemyArt.IconCrack : EnemyArt.IconBolt;
         icon.sortingLayerID = layer;
         icon.sortingOrder = (tile != null ? SortDepth.Character(tile) : SortDepth.Character(0, cell.x, cell.y)) + 400; // над персонажами — значок «что будет»
         icon.transform.localScale = Vector3.one * 1.5f;
@@ -474,6 +496,91 @@ public static class EnemyLayer
         yield return BoardWave.Play(target, ice ? 0.05f : 0.07f, WaveRiders);
     }
 
+    // ───────────── лесная змея: шипы и удар хвостом ─────────────
+
+    static readonly Dictionary<Vector2Int, GameObject> SpikeViews = new Dictionary<Vector2Int, GameObject>();
+
+    static bool HasSnakeBody()
+    {
+        if (_level == null || _level.enemies == null) return false;
+        foreach (var e in _level.enemies) if (e != null && e.body > 0) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Удар змеи: кто бьёт (голова — шипы, хвост — провал) подпрыгивает и бьёт о землю; шипы
+    /// вырастают из клеток / клетки проваливаются; по полю — волна от места удара.
+    /// </summary>
+    static IEnumerator SnakeStrike(View head, GameEvent e, List<Vector2Int> cells)
+    {
+        bool spikes = e.Style == SnakeBrain.Spikes;
+        var origin = new Vector2Int(e.To.X, e.To.Y);
+        // Хвостом бьёт последний сегмент — он стоит в клетке-цели удара.
+        var striker = spikes ? head : Views.Values.FirstOrDefault(v => v.Cell == origin) ?? head;
+        yield return SlamHop(striker);
+        PixelSfx.Play(spikes ? Sfx.Land : Sfx.Remove, 1f, spikes ? 0.6f : 0.45f);
+        var heroSr = Hero != null ? Hero.MainRenderer : null;
+        int layer = heroSr != null ? heroSr.sortingLayerID : 0;
+        foreach (var cell in cells)
+        {
+            var tile = TileAt(cell);
+            if (tile == null) continue;
+            PixelFX.Burst(WorldOf(cell) + Vector3.up * 0.04f, PixelFX.DustColors, 6, 0.4f, 0.2f, 1.2f, layer, DepthAt(cell) + 3, PixelFX.Dot, 1f, 0.5f);
+            if (spikes) Track(RaiseSpikes(cell, tile, layer));
+            else SpecialTiles.Collapse(tile);
+        }
+        yield return BoardWave.Play(spikes ? origin : striker.Cell, spikes ? 0.04f : 0.06f, WaveRiders);
+    }
+
+    static IEnumerator SlamHop(View v)
+    {
+        if (v == null || v.Go == null) yield break;
+        var home = v.Go.transform.position;
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.28f)
+        {
+            if (v.Go == null) yield break;
+            float h = t < 0.6f ? Mathf.Sin(t / 0.6f * Mathf.PI * 0.5f) * 0.09f : (1f - (t - 0.6f) / 0.4f) * 0.09f;
+            v.Go.transform.position = Snap(home + Vector3.up * h);
+            yield return null;
+        }
+        if (v.Go != null) v.Go.transform.position = home;
+    }
+
+    static IEnumerator RaiseSpikes(Vector2Int cell, OverlayTile tile, int layer)
+    {
+        if (SpikeViews.TryGetValue(cell, out var old) && old != null) Object.Destroy(old);
+        var sr = new GameObject("Spikes").AddComponent<SpriteRenderer>();
+        sr.transform.SetParent(Root, false);
+        sr.sprite = EnemyArt.Spikes;
+        sr.sortingLayerID = layer;
+        sr.sortingOrder = SortDepth.Marker(tile) + 1; // над клеткой, под персонажами
+        SpikeViews[cell] = sr.gameObject;
+        var top = WorldOf(cell) - new Vector3(0f, 0.03f, 0f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.15f)
+        {
+            if (sr == null) yield break;
+            sr.transform.position = Snap(top + Vector3.down * 0.12f * (1f - t));
+            sr.transform.localScale = new Vector3(1f, Mathf.Lerp(0.2f, 1f, t), 1f);
+            yield return null;
+        }
+        if (sr != null) { sr.transform.position = top; sr.transform.localScale = Vector3.one; }
+    }
+
+    static IEnumerator LowerSpikes(Vector2Int cell)
+    {
+        if (!SpikeViews.TryGetValue(cell, out var go) || go == null) yield break;
+        SpikeViews.Remove(cell);
+        var start = go.transform.position;
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.15f)
+        {
+            if (go == null) yield break;
+            go.transform.position = Snap(start + Vector3.down * 0.12f * t);
+            go.transform.localScale = new Vector3(1f, 1f - 0.8f * t, 1f);
+            yield return null;
+        }
+        if (go != null) Object.Destroy(go);
+    }
+
     /// <summary>Кто стоит на клетке (для волны): герой и враги, кроме висящего ромба.</summary>
     static IEnumerable<Transform> WaveRiders(Vector2Int cell)
     {
@@ -483,6 +590,7 @@ public static class EnemyLayer
             yield return hero.transform;
         foreach (var v in Views.Values)
             if (!v.Hovers && v.Go != null && v.Cell == cell) yield return v.Go.transform;
+        if (SpikeViews.TryGetValue(cell, out var spikes) && spikes != null) yield return spikes.transform;
     }
 
     /// <summary>Ромб висит над клеткой и медленно покачивается (на целые пиксели).</summary>

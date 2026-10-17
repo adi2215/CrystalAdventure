@@ -480,6 +480,56 @@ public static class EnemyArt
         "....a....",
     }, new Dictionary<char, Color> { { 'a', C255(30, 70, 140) }, { 'w', C255(220, 245, 255) }, { 'c', Color.white } }, new Vector2(0.5f, 0f));
 
+    // ───────────── лесная змея ─────────────
+
+    /// <summary>Шипы-корни из земли (24×16): три деревянных шипа с зелёными листиками. Опора — низ.</summary>
+    public static Sprite Spikes => Get("Spikes", new[]
+    {
+        "...........a............",
+        "..........aba...........",
+        "....a.....aba......a....",
+        "...aba....abba....aba...",
+        "...aba...abbba....aba...",
+        "...abba..abbbba..abba...",
+        "..abbba..abbbba..abbba..",
+        "..abbbba.abbbbba.abbbba.",
+        ".abbbbba.abbbbba.abbbbba",
+        ".abbbbbbaabbbbbbaabbbbba",
+        "gaabbbbbaabbbbbbaabbbbag",
+        "ggaabbbbaabbbbbaaabbbagg",
+        ".ggaaabbaabbbbaaabbaagg.",
+        "..gggaaaaaaaaaaaaaaggg..",
+        "...gggggggggggggggggg...",
+        "....gggggggggggggggg....",
+    }, new Dictionary<char, Color>
+    {
+        { 'a', C255(60, 35, 30) }, { 'b', C255(170, 120, 80) }, { 'g', C255(70, 150, 70) },
+    }, new Vector2(0.5f, 0f));
+
+    /// <summary>Значок «будут шипы» над прицелом.</summary>
+    public static Sprite IconSpikes => Get("IconSpikes", new[]
+    {
+        "...a.....",
+        "..aba....",
+        "..aba.a..",
+        ".abba.ba.",
+        ".abbaabba",
+        "aabbbabba",
+        "aaaaaaaaa",
+    }, new Dictionary<char, Color> { { 'a', C255(60, 35, 30) }, { 'b', C255(220, 170, 110) } }, new Vector2(0.5f, 0f));
+
+    /// <summary>Значок «провалится земля» над прицелом.</summary>
+    public static Sprite IconCrack => Get("IconCrack", new[]
+    {
+        "aaaaaaaaa",
+        "abbbcbbba",
+        "abbcbbbba",
+        "abbbccbba",
+        "abbbbbcba",
+        "abbbbcbba",
+        "aaaaaaaaa",
+    }, new Dictionary<char, Color> { { 'a', C255(60, 35, 30) }, { 'b', C255(150, 110, 80) }, { 'c', C255(20, 10, 10) } }, new Vector2(0.5f, 0f));
+
     public static bool IsBoss(string archetype) => archetype == "WoodMechGuardian" || archetype == "FrostBallGeneral";
 
     public static Sprite Heart => Get("Heart", HeartRows, HeartPal, new Vector2(0.5f, 0.5f));

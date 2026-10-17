@@ -84,7 +84,7 @@ static class EnemyTests
         { "LevelEnemy1", new[] { "R R R R", "repeat 4 { R }" } },
         { "LevelEnemy2", new[] { "R R R R" } },
         { "LevelEnemy3", new[] { "repeat 6 { R }" } },
-        { "LevelBossForest", new[] { "repeat 4 { F } repeat 4 { R } repeat 4 { B }" } },
+        { "LevelBossForest", new[] { "repeat 3 { F } R", "repeat 3 { F } repeat 4 { R } B B B", "R F F F L L" } },
         { "LevelBossWinter", new[] { "repeat 7 { R } repeat 7 { F }", "repeat 7 { F } repeat 7 { R }", "repeat 3 { R R F } repeat 7 { F }" } },
     };
 
@@ -230,6 +230,50 @@ static class EnemyTests
             T.True(frozen.All(e => e.Cell != new Cell(5, 2)), "crystal cell stays ground");
             var touch = Run(Field(new[] { "S#C" }, new LevelEnemy { cell = new Vector2Int(1, 0), archetype = "BossWinter", facing = ItemType.Left }), "R");
             T.Outcome(Outcome.Lost, touch);
+        });
+
+        // Змея на кольце 5×5 вокруг ямы: голова (3,1), маршрут FFLLBBRR, 3 сегмента тела.
+        LevelSt Snake(string[] rows = null) => Field(rows ?? new[] { "C###C", "#####", "##.##", "#####", "S###C" },
+            new LevelEnemy { cell = new Vector2Int(3, 1), archetype = "BossForest", facing = ItemType.Forward, path = "FFLLBBRR", body = 3 });
+
+        T.Run("forest snake: body starts on the cells behind the head and follows it like a train", () =>
+        {
+            var w = LegacyLevelImport.ToSetup(Snake(), new Vector2Int(0, 0)).Build();
+            var segs = w.Entities.Where(e => e.Archetype == EnemyBrains.SnakeBodyArchetype).ToList();
+            T.Eq(3, segs.Count, "3 body segments");
+            T.Eq("(2,1) (1,1) (1,2)", string.Join(" ", segs.Select(e => e.Pos.ToString())), "body behind the head along the route");
+            T.True(segs.All(e => e.Deadly), "every segment is deadly");
+            var r = Run(Snake(), "R");
+            var moved = r.Turns[0].Events.Where(e => e.Type == GameEventType.Moved && e.EntityId != r.Final.Hero.Id).Select(e => e.To.ToString());
+            T.Eq("(3,2) (3,1) (2,1) (1,1)", string.Join(" ", moved), "head and body move together");
+        });
+
+        T.Run("forest snake: spikes rise in front of the head and stay 2 more turns", () =>
+        {
+            // Ход 4 — шипы (1,3),(0,3) перед головой, смотрящей влево; торчат на ходах 5–6.
+            var r = Run(Snake(), "F F B F F");
+            T.Outcome(Outcome.Lost, r);
+            T.Eq(5, r.Turns.Count, "stepped on lingering spikes on turn 5");
+            T.True(r.AllEvents.Any(e => e.Type == GameEventType.Died && e.Info == SnakeBrain.Spikes), "killed by spikes");
+            var up = r.AllEvents.Where(e => e.Type == GameEventType.TileChanged && e.Info == "spikes_up").Select(e => e.Cell.ToString());
+            T.Eq("(1,3) (0,3)", string.Join(" ", up), "spike cells");
+            var plan = r.AllEvents.First(e => e.Type == GameEventType.IntentPlanned && e.Style == SnakeBrain.Spikes);
+            T.True(plan.Area.Length == 2, "telegraphed the turn before");
+            // На ходу 7 шипы уже опустились — проходим.
+            var later = Run(Snake(), "F F B F B F F");
+            T.True(later.Turns.Count == 7 && later.Final.Hero.Alive, "spikes are down on turn 7");
+        });
+
+        T.Run("forest snake: tail slam collapses cells around the tail, never the route or crystals", () =>
+        {
+            // Удар хвостом — на ходу 8; герой всё это время стоит у старта (упирается в край).
+            var longer = Run(Snake(), "repeat 8 { B }");
+            var cells = longer.AllEvents.Where(e => e.Type == GameEventType.TileChanged && e.Info == "collapsed").Select(e => e.Cell).ToList();
+            T.True(cells.Count > 0, "tail slam on turn 8 collapsed something");
+            var route = new HashSet<Cell> { new Cell(1, 1), new Cell(2, 1), new Cell(3, 1), new Cell(3, 2), new Cell(3, 3), new Cell(2, 3), new Cell(1, 3), new Cell(1, 2) };
+            T.True(cells.All(c => !route.Contains(c)), "route cells stay");
+            T.True(cells.All(c => longer.Final.GetTile(c).Gone), "collapsed cells are gone");
+            T.True(cells.All(c => c != new Cell(0, 4) && c != new Cell(4, 4) && c != new Cell(4, 0)), "crystal cells stay");
         });
 
         T.Run("cards Attack / Shield / SuperAttack still map to core actions (not used in levels yet)", () =>

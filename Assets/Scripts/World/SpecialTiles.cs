@@ -126,6 +126,24 @@ public static class SpecialTiles
         if (tile == null) return;
         var key = new Vector2Int(tile.gridLocation.x, tile.gridLocation.y);
         if (At(key.x, key.y) != SuperBlocks.Crumbling || !Broken.Add(key)) return;
+        Drop(tile, key);
+    }
+
+    /// <summary>
+    /// Любая клетка проваливается (удар хвостом лесной змеи) — так же, как рассыпающаяся плита,
+    /// и так же возвращается при Rewind (ResetAll).
+    /// </summary>
+    public static void Collapse(OverlayTile tile)
+    {
+        if (tile == null) return;
+        var key = new Vector2Int(tile.gridLocation.x, tile.gridLocation.y);
+        if (!AllBlocks.TryGetValue(key, out var block) || block == null || !Broken.Add(key)) return;
+        Blocks[key] = block;
+        Drop(tile, key);
+    }
+
+    static void Drop(OverlayTile tile, Vector2Int key)
+    {
 
         PixelSfx.Play(Sfx.Remove, 0.7f, 0.8f);
         if (Blocks.TryGetValue(key, out var block) && block != null)

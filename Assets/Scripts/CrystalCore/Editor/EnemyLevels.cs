@@ -17,7 +17,7 @@ namespace CrystalAdventure.EditorTools
     /// не съезжают.
     ///
     /// Враги — синие копии куба героя, идут по своему маршруту (LevelEnemy.path, по кругу); коснулся —
-    /// смерть и телепорт на старт. Лесной босс пока такой же куб, крупнее и зелёный; зимний — ледяной ромб
+    /// смерть и телепорт на старт. Лесной босс — змея из кубиков (SnakeBrain); зимний — ледяной ромб
     /// с прицельными ударами (StormBossBrain). Пушка стреляет по линии через ход. Атака / Щит / Супер-атака в этих уровнях не используются (решим позже).
     ///
     /// Решения заданы вручную; оптимумы проверены перебором программ через ядро
@@ -25,7 +25,10 @@ namespace CrystalAdventure.EditorTools
     ///   1. «Синий патруль» — обойти патрульного сверху: (R F B) × 4 (4).
     ///   2. «Перекрёсток» — переждать: R L, потом R × 4 (цикл только на последнюю R) (4).
     ///   3. «Ледяные пушки» — по нижнему ряду пушки попадают, по верхнему нет: F, R × 6 (цикл на одну R), B (4).
-    ///   4. Лесной босс — кольцо с кристаллами по углам: идти за боссом, а не навстречу: R × 4, F × 4, L × 4 (6).
+    ///   4. «Корневой змей» — лесной босс: змея из кубиков (голова и 3 сегмента) ползёт по кольцу вокруг ямы,
+    ///      каждый 4-й ход — шипы перед головой (держатся 2 хода) или удар хвостом (земля проваливается).
+    ///      Короткий путь к кристаллу на полосе змеи упирается в шипы; надо обойти по краю и зайти
+    ///      на полосу прямо за хвостом: R × 4, F × 3, L × 3 (6).
     ///   5. «Ледяной ромб» — арена 8×8, босс в углу каждый 3-й ход бьёт в клетку перед героем: молния (крест)
     ///      и супер-лёд (3×3, клетки замерзают). «Два вперёд — шаг назад»: шаг назад спасает от обоих ударов,
     ///      а по замёрзшим клеткам потом проезжаешь: (R R L) × 3, (F F B) × 3 (8).
@@ -46,8 +49,8 @@ namespace CrystalAdventure.EditorTools
 
         static readonly ItemType[] MovesAndWhile = { ItemType.Forward, ItemType.Left, ItemType.Bottom, ItemType.Right, ItemType.While };
         static SolutionCard C(ItemType t, int iterations = 1, int span = 0) => new SolutionCard { type = t, iterations = iterations, span = span };
-        static LevelEnemy E(int x, int y, string archetype, ItemType facing, string path = "") =>
-            new LevelEnemy { cell = new Vector2Int(x, y), archetype = archetype, facing = facing, path = path };
+        static LevelEnemy E(int x, int y, string archetype, ItemType facing, string path = "", int body = 0) =>
+            new LevelEnemy { cell = new Vector2Int(x, y), archetype = archetype, facing = facing, path = path, body = body };
 
         const ItemType F = ItemType.Forward, B = ItemType.Bottom, L = ItemType.Left, R = ItemType.Right, W = ItemType.While;
 
@@ -79,11 +82,11 @@ namespace CrystalAdventure.EditorTools
             },
             new Spec
             {
-                Name = "LevelBossForest", Title = "Лесной страж", ExpectedOptimal = 6,
-                Rows = new[] { "C###C", "#...#", "#...#", "#...#", "S###C" },
-                Enemies = new[] { E(4, 2, "BossForest", F, "FFLLLLBBBBRRRRFF") },
+                Name = "LevelBossForest", Title = "Корневой змей", ExpectedOptimal = 6,
+                Rows = new[] { "#####", "#C###", "##.##", "#####", "S###C" },
+                Enemies = new[] { E(3, 1, "BossForest", F, "FFLLBBRR", body: 3) },
                 Main = MovesAndWhile,
-                Solution = new List<SolutionCard> { C(R), C(W, 3), C(F), C(W, 3), C(L), C(W, 3) },
+                Solution = new List<SolutionCard> { C(R), C(W, 3), C(F), C(W, 2), C(L), C(W, 2) },
             },
             new Spec
             {
@@ -124,7 +127,7 @@ namespace CrystalAdventure.EditorTools
                 }
             lvl.tiles = tiles;
             lvl.characterPos = LegacyLevelImport.CharacterPosFor(new Vector3Int(start.x, start.y, 0), null);
-            lvl.enemies = spec.Enemies.Select(e => new LevelEnemy { cell = e.cell, archetype = e.archetype, facing = e.facing, path = e.path }).ToList();
+            lvl.enemies = spec.Enemies.Select(e => new LevelEnemy { cell = e.cell, archetype = e.archetype, facing = e.facing, path = e.path, body = e.body }).ToList();
             lvl.heroHp = spec.HeroHp;
             lvl.superAttacks = spec.SuperAttacks;
             lvl.panels = new[] { new Panels { panelName = "Main", commands = spec.Main.Select(item).ToArray() } };

@@ -141,16 +141,21 @@ namespace CrystalAdventure.Core
             if (_script.Length == 0) return Intent.Wait;
             char ch = _script[_index % _script.Length];
             _index++;
-            Dir d;
+            if (!TryDir(ch, out var d)) return Intent.Wait;
+            return w.CanStep(self.Pos, self.Pos.Step(d)) ? Intent.Move(d) : Intent.Wait;
+        }
+
+        /// <summary>Буква маршрута → направление (F/B/L/R как карточки героя); W и прочее — стоять.</summary>
+        public static bool TryDir(char ch, out Dir d)
+        {
             switch (ch)
             {
-                case 'F': d = Dir.North; break;
-                case 'B': d = Dir.South; break;
-                case 'L': d = Dir.West; break;
-                case 'R': d = Dir.East; break;
-                default: return Intent.Wait;
+                case 'F': d = Dir.North; return true;
+                case 'B': d = Dir.South; return true;
+                case 'L': d = Dir.West; return true;
+                case 'R': d = Dir.East; return true;
+                default: d = Dir.North; return false;
             }
-            return w.CanStep(self.Pos, self.Pos.Step(d)) ? Intent.Move(d) : Intent.Wait;
         }
     }
 
@@ -158,7 +163,10 @@ namespace CrystalAdventure.Core
     {
         /// <summary>Архетипы, касание которых смертельно (синий куб и боссы-кубы).</summary>
         public static bool IsDeadlyOnTouch(string archetype) =>
-            archetype == "Walker" || archetype == "BossForest" || archetype == "BossWinter";
+            archetype == "Walker" || archetype == "BossForest" || archetype == "BossWinter" || archetype == SnakeBodyArchetype;
+
+        /// <summary>Архетип сегмента тела змеи (создаёт LevelSetup.Build по EntitySpec.Body).</summary>
+        public const string SnakeBodyArchetype = "SnakeBody";
 
         /// <summary>Мозг по имени архетипа (имя = префаб во View).</summary>
         public static IEnemyBrain Create(string archetype)

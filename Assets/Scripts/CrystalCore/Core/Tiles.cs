@@ -51,6 +51,7 @@ namespace CrystalAdventure.Core
         public int Color;           // цвет клетки для условий карточек: 0 — нет, дальше как TileColor (1 Red, 2 Blue, 3 Yellow)
         public int Counter;         // внутренний счётчик (не задаётся в редакторе)
         public bool Gone;           // клетка исчезла (рассыпалась / облако пропало)
+        public int Hazard;          // шипы змеи торчат ещё столько ходов (наступил — смерть)
 
         public TileState Clone() => (TileState)MemberwiseClone();
     }
