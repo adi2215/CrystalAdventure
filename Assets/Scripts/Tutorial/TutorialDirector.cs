@@ -103,6 +103,9 @@ public class TutorialDirector : MonoBehaviour
             yield return null;
         }
 
+        // Титульный экран, пролог или вступление босса ещё идут — туториал после них.
+        while (StoryDirector.IsBlocking) yield return null;
+
         var level = TilemapData.CurrentLevel;
         var data = _moving != null && _moving.character != null ? _moving.character.tran : null;
         int index = data != null ? data.NextLevel : -1;
