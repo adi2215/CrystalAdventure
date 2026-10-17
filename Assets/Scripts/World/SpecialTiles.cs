@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 /// <summary>
@@ -23,7 +24,17 @@ public static class SpecialTiles
 
     static readonly Dictionary<Vector2Int, SuperBlocks> Current = new Dictionary<Vector2Int, SuperBlocks>();
     static readonly Dictionary<Vector2Int, GameObject> Blocks = new Dictionary<Vector2Int, GameObject>();
-    static readonly Dictionary<Vector2Int, Vector3> BlockHome = new Dictionary<Vector2Int, Vector3>();
+    static readonly Dictionary<Vector2Int, FallState> Falling = new Dictionary<Vector2Int, FallState>();
+
+    /// <summary>Как было до падения — чтобы Rewind вернул плиту один в один.</summary>
+    sealed class FallState
+    {
+        public Vector3 Home;
+        public SpriteRenderer[] Renderers;
+        public int[] Orders;
+        public Color[] Colors;
+        public Coroutine Routine;
+    }
     static readonly HashSet<Vector2Int> Broken = new HashSet<Vector2Int>();
     static bool _winter;
 
@@ -43,7 +54,7 @@ public static class SpecialTiles
     {
         Current.Clear();
         Blocks.Clear();
-        BlockHome.Clear();
+        Falling.Clear();
         Broken.Clear();
         _hiddenOverlays.Clear();
         _winter = levelIndex / LevelsPerChapter == WinterChapter;
@@ -80,11 +91,8 @@ public static class SpecialTiles
         }
         else if (_winter && ColorTiles.At(cell.x, cell.y) == TileColor.None) overlay = SnowSprite;
 
-        if (type == SuperBlocks.Crumbling)
-        {
-            Blocks[key] = block;
-            BlockHome[key] = block.transform.localPosition;
-        }
+        // Позицию НЕ запоминаем здесь: блоки ещё влетают на место (вступление MapManager).
+        if (type == SuperBlocks.Crumbling) Blocks[key] = block;
         if (overlay == null) return;
 
         var child = new GameObject(type == SuperBlocks.None ? "Snow" : type.ToString());
@@ -110,8 +118,21 @@ public static class SpecialTiles
             if (sr != null)
                 PixelFX.Burst(block.transform.position + Vector3.up * 0.12f, PixelFX.DustColors, 10, 0.5f, 0.15f, 1.6f,
                               sr.sortingLayerID, sr.sortingOrder + 3, PixelFX.Dot, 1f, 0.6f);
+            // Запоминаем всё сейчас: остров уже собран, блок стоит на своём месте.
+            var renderers = block.GetComponentsInChildren<SpriteRenderer>(true);
+            var state = new FallState
+            {
+                Home = block.transform.localPosition,
+                Renderers = renderers,
+                Orders = renderers.Select(r => r.sortingOrder).ToArray(),
+                Colors = renderers.Select(r => r.color).ToArray(),
+            };
+            Falling[key] = state;
+            // Сортировка в проекте по оси Y: опускаясь, блок рисовался бы ПОВЕРХ передних клеток.
+            // На время падения уводим его (с трещинами и камнями) под остров.
+            foreach (var r in renderers) r.sortingOrder -= FallOrderShift;
             var host = ActiveBlockManager.Instance;
-            if (host != null) host.StartCoroutine(Fall(block));
+            if (host != null) state.Routine = host.StartCoroutine(Fall(block, state));
             else block.SetActive(false);
         }
         if (tile.gameObject != null) tile.gameObject.SetActive(false); // клетка-подсветка тоже исчезает
@@ -120,30 +141,46 @@ public static class SpecialTiles
 
     static readonly Dictionary<Vector2Int, OverlayTile> _hiddenOverlays = new Dictionary<Vector2Int, OverlayTile>();
 
-    /// <summary>Rewind: все упавшие плиты возвращаются на место.</summary>
+    /// <summary>
+    /// Rewind: все упавшие плиты возвращаются на место.
+    ///
+    /// Исправлено: плита не возвращалась — «домашняя» позиция запоминалась, пока блоки ещё влетали
+    /// на остров (на 2 единицы ниже), и Rewind ставил её туда. Ещё падение, начатое прямо перед
+    /// Rewind, доигрывалось и снова прятало плиту — теперь оно останавливается.
+    /// </summary>
     public static void ResetAll()
     {
+        var host = ActiveBlockManager.Instance;
         foreach (var key in Broken)
         {
             if (Blocks.TryGetValue(key, out var block) && block != null)
             {
-                block.SetActive(true);
-                if (BlockHome.TryGetValue(key, out var home)) block.transform.localPosition = home;
-                foreach (var r in block.GetComponentsInChildren<SpriteRenderer>(true))
+                if (Falling.TryGetValue(key, out var st))
                 {
-                    var c = r.color; c.a = 1f; r.color = c;
+                    if (st.Routine != null && host != null) host.StopCoroutine(st.Routine);
+                    block.transform.localPosition = st.Home;
+                    for (int i = 0; i < st.Renderers.Length; i++)
+                    {
+                        if (st.Renderers[i] == null) continue;
+                        st.Renderers[i].sortingOrder = st.Orders[i];
+                        st.Renderers[i].color = st.Colors[i];
+                    }
                 }
+                block.SetActive(true);
             }
             if (_hiddenOverlays.TryGetValue(key, out var tile) && tile != null) tile.gameObject.SetActive(true);
         }
         Broken.Clear();
+        Falling.Clear();
         _hiddenOverlays.Clear();
     }
 
-    static IEnumerator Fall(GameObject block)
+    const int FallOrderShift = 5;
+
+    static IEnumerator Fall(GameObject block, FallState state)
     {
-        var start = block.transform.localPosition;
-        var renderers = block.GetComponentsInChildren<SpriteRenderer>(true);
+        var start = state.Home;
+        var renderers = state.Renderers;
         const float time = 0.45f;
         for (float t = 0f; t < 1f && block != null; t += Time.deltaTime / time)
         {
@@ -152,10 +189,15 @@ public static class SpecialTiles
             float drop = t < 0.3f ? 0f : Mathf.Round((t - 0.3f) * (t - 0.3f) * 120f) * 0.01f;
             block.transform.localPosition = start + new Vector3(shake, -drop, 0f);
             float a = t < 0.3f ? 1f : 1f - (t - 0.3f) / 0.7f;
-            foreach (var r in renderers) { var c = r.color; c.a = a; r.color = c; }
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                if (renderers[i] == null) continue;
+                var c = state.Colors[i]; c.a *= a; renderers[i].color = c;
+            }
             yield return null;
         }
         if (block != null) block.SetActive(false);
+        state.Routine = null;
     }
 
     // ───────────── картинки (рисуются кодом по силуэту куба 32×32) ─────────────
