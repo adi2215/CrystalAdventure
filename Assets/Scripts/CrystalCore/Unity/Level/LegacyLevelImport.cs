@@ -74,12 +74,40 @@ namespace CrystalAdventure.UnityLayer
             ApplyClassicRules(setup.Rules);
             AddTiles(setup, level);
             setup.Entities.Add(new EntitySpec { Kind = EntityKind.Hero, X = heroCell.x, Y = heroCell.y, Facing = Dir.South });
+            AddEnemies(setup, level);
             if (level != null && level.optimalCards > 0)
             {
                 setup.OptimalBlocks = level.optimalCards;
                 setup.GoodBlocks = GoodBlocksFor(level.optimalCards);
             }
             return setup;
+        }
+
+        /// <summary>Враги и боссы уровня, здоровье героя и число супер-атак.</summary>
+        public static void AddEnemies(LevelSetup setup, LevelSt level)
+        {
+            if (level == null) return;
+            setup.Rules.HeroHp = Mathf.Max(1, level.heroHp);
+            setup.Rules.SuperAttacks = Mathf.Max(0, level.superAttacks);
+            if (level.enemies == null) return;
+            foreach (var e in level.enemies)
+            {
+                if (e == null || string.IsNullOrEmpty(e.archetype)) continue;
+                // Kind = Enemy; боссом его сделает EnemyBrains.ApplyStats по архетипу.
+                setup.Entities.Add(new EntitySpec { Kind = EntityKind.Enemy, Archetype = e.archetype, X = e.cell.x, Y = e.cell.y, Facing = DirOf(e.facing) });
+            }
+        }
+
+        /// <summary>Стрелка карточки → направление ядра (Forward = +Y = North, как TurnResolver.HeroIntent).</summary>
+        public static Dir DirOf(ItemType arrow)
+        {
+            switch (arrow)
+            {
+                case ItemType.Forward: return Dir.North;
+                case ItemType.Right: return Dir.East;
+                case ItemType.Bottom: return Dir.South;
+                default: return Dir.West;
+            }
         }
 
         /// <summary>

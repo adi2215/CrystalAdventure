@@ -44,6 +44,7 @@ public class CharacterCode : MonoBehaviour
 
     private Sprite _frontSprite;
     private SpriteRenderer[] _renderers;
+    private Color[] _baseColors; // исходные цвета куба и его детей (тень и т.п.) — для вспышек урона и Rewind
 
     [Header("Край: «чуть не упал»")]
     [Tooltip("Насколько куб выходит к краю клетки (доля шага)")] [Range(0.1f, 0.6f)] public float edgeReach = 0.42f;
@@ -107,6 +108,8 @@ public class CharacterCode : MonoBehaviour
         order = GetComponent<SpriteRenderer>();
         if (order != null) _frontSprite = order.sprite;
         _renderers = GetComponentsInChildren<SpriteRenderer>(true);
+        _baseColors = new Color[_renderers.Length];
+        for (int i = 0; i < _renderers.Length; i++) _baseColors[i] = _renderers[i] != null ? _renderers[i].color : Color.white;
         _juice = GetComponent<HeroJuice>();
         if (_juice == null) _juice = gameObject.AddComponent<HeroJuice>();
     }
@@ -285,6 +288,7 @@ public class CharacterCode : MonoBehaviour
     {
         if (!_landed) return; // ещё запрыгивает на поле — сбрасывать нечего
         StopRun();
+        RestoreLook();
         transform.rotation = Quaternion.identity; // мог остаться наклон после края
         MoveToStartTile();
         FaceDefault();
@@ -321,10 +325,25 @@ public class CharacterCode : MonoBehaviour
             }
             if (cmd != null) Face(cmd.type);
             onStep?.Invoke(i);
-            var step = plan != null ? PlannedStep(plan[i], map) : WayTiles.Resolve(_tile, cmd, map);
+            bool core = plan != null;
+            var planned = core ? plan[i] : default;
+            EnemyLayer.BeginTurn(i); // враги шагают одновременно с кубом
+            if (_shieldFx != null) _shieldFx.SetActive(false);
+
+            var step = core ? PlannedStep(planned, map) : WayTiles.Resolve(_tile, cmd, map);
             var leftTile = _tile;
 
-            if (step.target == null)
+            if (core && !planned.IsMove)
+            {
+                // Не ход: удар, супер-удар, щит, ожидание (уровни с врагами).
+                yield return DoAction(planned);
+            }
+            else if (core && planned.Blocked)
+            {
+                // Упёрся во врага (или стену) — это не край: толкнулся и остался, «чуть не упал» не считается.
+                yield return Bump(new Vector3Int(planned.Facing.x, planned.Facing.y, 0));
+            }
+            else if (step.target == null)
             {
                 // Дальше пусто — куб доходит до края, балансирует и возвращается. Ход потрачен.
                 onEdge?.Invoke(i);
@@ -355,10 +374,27 @@ public class CharacterCode : MonoBehaviour
             if (step.target != null && leftTile != null && leftTile != _tile && SpecialTiles.IsCrumbling(leftTile))
                 SpecialTiles.Crumble(leftTile);
 
+            // Удары врагов, урон, смерти, новые красные клетки — после шага куба.
+            yield return EnemyLayer.FinishTurn(i);
+            if (token != _runToken) yield break;
+
             if (_collectedNow)
             {
                 _collectedNow = false;
                 yield return Hop(collectHopHeight, collectHopTime, 0f); // взял кристалл — подпрыгнул
+            }
+
+            if (core && planned.HeroDied)
+            {
+                // Герой пал — программа обрывается; дальше только Rewind.
+                yield return Defeat();
+                break;
+            }
+            if (core && planned.Won && EnemyLayer.Active && ActiveBlockManager.Instance != null)
+            {
+                // На уровнях с врагами победу объявляет ядро (кристаллы + босс повержен).
+                ActiveBlockManager.Instance.ForceVictory();
+                yield break;
             }
 
             if (pauseBetweenSteps > 0f) yield return new WaitForSeconds(pauseBetweenSteps);
@@ -367,6 +403,108 @@ public class CharacterCode : MonoBehaviour
         _run = null;
         onDone?.Invoke();
     }
+
+    // ============================================================
+    //              ВРАГИ: УДАР, ЩИТ, УРОН, ПОРАЖЕНИЕ
+    // ============================================================
+
+    GameObject _shieldFx;
+
+    /// <summary>Действие без шага (карточки Атака / Супер-атака / Щит): удар — рывок туда, куда смотрит куб.</summary>
+    IEnumerator DoAction(CrystalAdventure.UnityLayer.CorePlannedStep planned)
+    {
+        var dir = new Vector3Int(planned.Facing.x, planned.Facing.y, 0);
+        switch (planned.Action)
+        {
+            case CrystalAdventure.Core.ActionType.Attack:
+            case CrystalAdventure.Core.ActionType.SuperAttack:
+            {
+                bool super = planned.Action == CrystalAdventure.Core.ActionType.SuperAttack;
+                Vector3 start = transform.localPosition;
+                Vector3 reach = StepVector(dir) * (super ? 0.45f : 0.32f);
+                PixelSfx.Play(Sfx.Jump, 0.7f, super ? 0.7f : 1.3f);
+                Squash(-0.15f);
+                for (float t = 0f; t < 1f; t += Time.deltaTime / (super ? 0.3f : 0.2f))
+                {
+                    float k = Mathf.Sin(t * Mathf.PI);
+                    var p = start + reach * k;
+                    transform.localPosition = new Vector3(Mathf.Round(p.x * 100f) / 100f, Mathf.Round(p.y * 100f) / 100f, p.z);
+                    yield return null;
+                }
+                transform.localPosition = start;
+                if (order != null)
+                    PixelFX.Burst(ToWorld(start + reach) + Vector3.up * 0.08f,
+                                  super ? new[] { new Color(1f, 0.85f, 0.3f, 1f), Color.white, new Color(0.6f, 0.9f, 1f, 1f) } : PixelFX.StarColors,
+                                  super ? 14 : 6, super ? 0.8f : 0.45f, 0.2f, 1.2f, order.sortingLayerID, order.sortingOrder + 3, PixelFX.Dot, 1f, 0.45f);
+                Squash(0.15f);
+                break;
+            }
+            case CrystalAdventure.Core.ActionType.Shield:
+            {
+                if (_shieldFx == null)
+                {
+                    var sr = new GameObject("ShieldFx").AddComponent<SpriteRenderer>();
+                    sr.transform.SetParent(transform, false);
+                    sr.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+                    sr.sprite = EnemyArt.Bubble;
+                    if (order != null) { sr.sortingLayerID = order.sortingLayerID; sr.sortingOrder = order.sortingOrder + 2; }
+                    _shieldFx = sr.gameObject;
+                }
+                _shieldFx.SetActive(true);
+                PixelSfx.Play(Sfx.Pop, 0.6f, 1.2f);
+                yield return new WaitForSeconds(0.2f);
+                break;
+            }
+            default:
+                yield return new WaitForSeconds(0.2f); // ожидание
+                break;
+        }
+    }
+
+    /// <summary>Куба ударили: вспышка и дрожь (из EnemyLayer).</summary>
+    public void PlayHurt() => StartCoroutine(HurtRoutine());
+
+    IEnumerator HurtRoutine()
+    {
+        // Только вспышка и сжатие: позицию не трогаем — следующий шаг может начаться, пока вспышка гаснет.
+        PixelSfx.Play(Sfx.Edge, 0.8f, 1.2f);
+        Squash(-0.2f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.3f)
+        {
+            if (order != null) order.color = Color.Lerp(new Color(1f, 0.35f, 0.35f, 1f), BaseColorOf(order), t);
+            yield return null;
+        }
+        if (order != null) order.color = BaseColorOf(order);
+    }
+
+    /// <summary>Поражение: куб заваливается и тает. Rewind вернёт его (RestoreLook).</summary>
+    IEnumerator Defeat()
+    {
+        PixelSfx.Play(Sfx.Edge, 1f, 0.7f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.6f)
+        {
+            transform.rotation = Quaternion.Euler(0f, 0f, Mathf.Lerp(0f, 90f, Mathf.SmoothStep(0f, 1f, t)));
+            for (int i = 0; i < _renderers.Length; i++)
+                if (_renderers[i] != null) { var c = _baseColors[i]; c.a *= 1f - t * 0.7f; _renderers[i].color = c; }
+            yield return null;
+        }
+    }
+
+    /// <summary>Вернуть вид после поражения / удара / щита (Rewind).</summary>
+    void RestoreLook()
+    {
+        if (_renderers != null)
+            for (int i = 0; i < _renderers.Length; i++) if (_renderers[i] != null) _renderers[i].color = _baseColors[i];
+        if (_shieldFx != null) _shieldFx.SetActive(false);
+        transform.rotation = Quaternion.identity;
+    }
+
+    Color BaseColorOf(SpriteRenderer r)
+    {
+        int i = System.Array.IndexOf(_renderers, r);
+        return i >= 0 ? _baseColors[i] : Color.white;
+    }
+
 
     /// <summary>Шаг ядра → тот же Step, что дал бы WayTiles (прыжок — если стоим на грибе или встаём на гриб).</summary>
     WayTiles.Step PlannedStep(CrystalAdventure.UnityLayer.CorePlannedStep planned, Dictionary<Vector3Int, OverlayTile> map)

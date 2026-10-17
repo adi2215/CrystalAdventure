@@ -20,6 +20,14 @@ public class LevelSt : ScriptableObject
     [Tooltip("Пошаговый туториал (Create → Crystal Adventure → Tutorial). Показывается, пока уровень не пройден; старый диалог тогда не открывается.")]
     public TutorialScript tutorial;
 
+    [Header("Враги (ядро CrystalCore)")]
+    [Tooltip("Враги и боссы уровня. Archetype: TrainingDummy, SmallBallScout, ForestDrone, FrostTurret, SnowBallSoldier, HeavyIceGuard, WoodMechGuardian, FrostBallGeneral")]
+    public List<LevelEnemy> enemies = new List<LevelEnemy>();
+    [Tooltip("Здоровье героя на уровне с врагами")] [Min(1)] public int heroHp = 3;
+    [Tooltip("Сколько карточек «Супер-атака» сработает за уровень")] [Min(0)] public int superAttacks = 1;
+
+    public bool HasEnemies => enemies != null && enemies.Count > 0;
+
     [Header("Решение — заполняет Crystal Adventure → Редактор уровней")]
     [Tooltip("Минимум карточек для прохождения. 0 — не посчитано (тогда звёзды по общим порогам).")]
     public int optimalCards;
@@ -56,6 +64,15 @@ public class SolutionCard
         int span = cards[index].span;
         return span <= 0 ? max : System.Math.Min(span, max);
     }
+}
+
+/// <summary>Враг на старте уровня. facing — куда смотрит, теми же стрелками, что карточки (Forward = вверх по сетке).</summary>
+[System.Serializable]
+public class LevelEnemy
+{
+    public Vector2Int cell;
+    public string archetype = "TrainingDummy";
+    public ItemType facing = ItemType.Left;
 }
 
 [System.Serializable]

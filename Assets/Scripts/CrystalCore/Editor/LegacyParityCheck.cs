@@ -86,6 +86,15 @@ namespace CrystalAdventure.EditorTools
             }
 
             var core = Simulation.Run(setup, program);
+            if (lvl.HasEnemies)
+            {
+                // Враги есть только в ядре — старых правил для них нет. Проверяем, что решение проходит уровень.
+                if (!core.Won) problems.Add($"ядро: {core.Outcome} — {core.Message}");
+                if (core.BlocksUsed != lvl.optimalCards) problems.Add($"карточек: ядро {core.BlocksUsed}, оптимум уровня {lvl.optimalCards}");
+                verdict = problems.Count == 0 ? Verdict.Ok : Verdict.Bad;
+                string s = $"с врагами: шагов {core.Turns.Count}, карточек {core.BlocksUsed}, ★{core.Stars}, здоровье {core.Final.Hero.Hp} | {ProgramText.Print(program)}";
+                return problems.Count == 0 ? s : string.Join("; ", problems) + " | " + s;
+            }
             var old = LegacyReplay.Run(lvl, start, slot => ItemProgramAdapter.SolutionCards(lvl, slot));
             var heroCell = new Vector2Int(core.Final.Hero.Pos.X, core.Final.Hero.Pos.Y);
 

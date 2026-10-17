@@ -148,8 +148,9 @@ namespace CrystalAdventure.Core
 
             while (true)
             {
-                if (IsWon(world)) { Finish(result, Outcome.Won, "Level complete", level); break; }
+                // Сначала смерть героя: если в одном ходу пали и босс, и герой (его добил миньон) — это поражение.
                 if (!world.Hero.Alive) { Finish(result, Outcome.Lost, "Hero defeated", level); break; }
+                if (IsWon(world)) { Finish(result, Outcome.Won, "Level complete", level); break; }
                 // Считаем записи, а не world.Turn: пропущенные карточки ход мира не двигают,
                 // но бесконечная рекурсия из одних пропусков тоже должна остановиться.
                 if (result.Turns.Count >= world.Rules.MaxTurns) { Finish(result, Outcome.TurnLimit, "Too many turns", level); break; }

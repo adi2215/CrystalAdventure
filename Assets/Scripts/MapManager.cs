@@ -153,5 +153,7 @@ public class MapManager : MonoBehaviour
     {
         yield return new WaitForSeconds(mapIntroTime);
         data.FallingMap = false;
+        // Враги появляются, когда остров собран (уровни с LevelSt.enemies).
+        EnemyLayer.Setup(TilemapData.CurrentLevel);
     }
 }

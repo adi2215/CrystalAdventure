@@ -120,11 +120,27 @@ public class ActiveBlockManager : MonoBehaviour
         return true;
     }
 
+    /// <summary>
+    /// На уровнях с врагами победу решает ядро (кристаллы + повержен босс), а не счётчик кристаллов:
+    /// EnemyLayer включает этот флаг и сам вызывает ForceVictory() в нужный ход.
+    /// </summary>
+    public bool victoryByCore;
+
     public void CheckCrystals()
     {
+        if (victoryByCore) return;
         if (LevelComplete || crystalObjectCount == 0) return;
         if (collectedCrystalObject < crystalObjectCount) return;
 
+        LevelComplete = true;
+        if (heroPlayer != null && heroPlayer.List != null) heroPlayer.List.OnLevelComplete();
+        finishing = StartCoroutine(FinishingCrystal());
+    }
+
+    /// <summary>Победа по решению ядра (уровни с врагами): то же, что после последнего кристалла.</summary>
+    public void ForceVictory()
+    {
+        if (LevelComplete) return;
         LevelComplete = true;
         if (heroPlayer != null && heroPlayer.List != null) heroPlayer.List.OnLevelComplete();
         finishing = StartCoroutine(FinishingCrystal());
@@ -155,7 +171,8 @@ public class ActiveBlockManager : MonoBehaviour
         }
         collected.Clear();
         collectedCrystalObject = 0;
-        SpecialTiles.ResetAll(); // упавшие плиты — на место
+        SpecialTiles.ResetAll(); // упавшие плиты и замороженные клетки — на место
+        EnemyLayer.ResetAll();   // враги — на старт
     }
 
     // ============================================================

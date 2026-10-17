@@ -24,6 +24,9 @@ public static class SpecialTiles
 
     static readonly Dictionary<Vector2Int, SuperBlocks> Current = new Dictionary<Vector2Int, SuperBlocks>();
     static readonly Dictionary<Vector2Int, GameObject> Blocks = new Dictionary<Vector2Int, GameObject>();
+    static readonly Dictionary<Vector2Int, GameObject> AllBlocks = new Dictionary<Vector2Int, GameObject>();
+    static readonly List<GameObject> FrozenCaps = new List<GameObject>();
+    static readonly List<GameObject> HiddenSnow = new List<GameObject>();
     static readonly Dictionary<Vector2Int, FallState> Falling = new Dictionary<Vector2Int, FallState>();
 
     /// <summary>Как было до падения — чтобы Rewind вернул плиту один в один.</summary>
@@ -54,6 +57,9 @@ public static class SpecialTiles
     {
         Current.Clear();
         Blocks.Clear();
+        AllBlocks.Clear();
+        FrozenCaps.Clear();
+        HiddenSnow.Clear();
         Falling.Clear();
         Broken.Clear();
         _hiddenOverlays.Clear();
@@ -93,6 +99,7 @@ public static class SpecialTiles
 
         // Позицию НЕ запоминаем здесь: блоки ещё влетают на место (вступление MapManager).
         if (type == SuperBlocks.Crumbling) Blocks[key] = block;
+        AllBlocks[key] = block;
         if (overlay == null) return;
 
         var child = new GameObject(type == SuperBlocks.None ? "Snow" : type.ToString());
@@ -141,6 +148,29 @@ public static class SpecialTiles
 
     static readonly Dictionary<Vector2Int, OverlayTile> _hiddenOverlays = new Dictionary<Vector2Int, OverlayTile>();
 
+    /// <summary>Босс Frost General заморозил клетку: поверх блока — ледяная шапка (до Rewind).</summary>
+    public static void Freeze(Vector2Int cell)
+    {
+        if (!AllBlocks.TryGetValue(cell, out var block) || block == null) return;
+        if (At(cell.x, cell.y) == SuperBlocks.Ice) return;
+        var sr = block.GetComponent<SpriteRenderer>();
+        if (sr == null) return;
+        // Лёд ложится ВМЕСТО снега (тот же порядок отрисовки) — снег прячем до Rewind.
+        var snow = block.transform.Find("Snow");
+        if (snow != null) { snow.gameObject.SetActive(false); HiddenSnow.Add(snow.gameObject); }
+        var child = new GameObject("Frozen");
+        child.transform.SetParent(block.transform, false);
+        var csr = child.AddComponent<SpriteRenderer>();
+        csr.sprite = IceSprite;
+        csr.sortingLayerID = sr.sortingLayerID;
+        csr.sortingOrder = sr.sortingOrder + 1;
+        csr.sharedMaterial = sr.sharedMaterial;
+        FrozenCaps.Add(child);
+        if (sr != null)
+            PixelFX.Burst(block.transform.position + Vector3.up * 0.16f, new[] { Color.white, new Color(0.7f, 0.9f, 1f, 1f) }, 6, 0.3f, 0.1f, 0.8f,
+                          sr.sortingLayerID, sr.sortingOrder + 3, PixelFX.Dot, 0.8f, 0.4f);
+    }
+
     /// <summary>
     /// Rewind: все упавшие плиты возвращаются на место.
     ///
@@ -173,6 +203,10 @@ public static class SpecialTiles
         Broken.Clear();
         Falling.Clear();
         _hiddenOverlays.Clear();
+        foreach (var cap in FrozenCaps) if (cap != null) Object.Destroy(cap);
+        FrozenCaps.Clear();
+        foreach (var snow in HiddenSnow) if (snow != null) snow.SetActive(true);
+        HiddenSnow.Clear();
     }
 
     const int FallOrderShift = 5;

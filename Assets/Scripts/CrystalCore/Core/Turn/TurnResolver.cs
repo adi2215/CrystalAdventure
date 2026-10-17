@@ -419,7 +419,10 @@ namespace CrystalAdventure.Core
             var w = ctx.World;
             foreach (var e in w.Entities.Where(x => x.Alive && x.IsHostile).OrderBy(x => x.Id))
             {
+                bool wasArmored = e.Armored;
                 e.Planned = e.Brain != null ? e.Brain.Plan(w, e) : Intent.Wait;
+                // Броню босс надевает в момент выбора приёма (новая фаза) — сообщаем, иначе View её не увидит.
+                if (!wasArmored && e.Armored) ctx.Emit(GameEventType.ArmorGained, e);
                 var ev = ctx.Emit(GameEventType.IntentPlanned, e);
                 ev.Dir = e.Planned.Dir;
                 ev.Info = e.Planned.Kind.ToString();

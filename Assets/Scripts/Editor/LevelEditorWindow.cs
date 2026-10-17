@@ -333,6 +333,15 @@ public class LevelEditorWindow : EditorWindow
 
     LevelSolver.Result SolveAndStore(LevelSt lvl)
     {
+        if (lvl.HasEnemies)
+        {
+            // Решатель не знает о боях (враги, урон, щит) — у таких уровней решение задано вручную
+            // и проверено ядром (Crystal Adventure → Уровни → Создать уровни с врагами). Не перезаписываем.
+            var keep = new LevelSolver.Result { Solvable = lvl.HasSolution, Cards = lvl.optimalCards, ProvenOptimal = false,
+                                                Message = "уровень с врагами — решение не пересчитывается" };
+            Debug.Log($"[Решатель] {lvl.name}: уровень с врагами — оставляю решение ({lvl.optimalCards} карт.)");
+            return keep;
+        }
         var result = LevelSolver.Solve(BuildProblem(lvl));
 
         Undo.RecordObject(lvl, "Solve level");

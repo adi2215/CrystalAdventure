@@ -39,6 +39,7 @@ namespace CrystalAdventure.Core
         Won,
         Lost,
         Skipped,        // карточка с условием по цвету пропущена: герой стоит, ход мира не тратится
+        ArmorGained,    // враг надел ледяную броню (босс в новой фазе) — View показывает её сразу
     }
 
     public sealed class GameEvent
