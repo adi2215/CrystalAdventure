@@ -28,7 +28,9 @@ namespace CrystalAdventure.Core
         public int SuperAttacksLeft;
         public bool ShieldUp;      // только в течение текущего хода
 
-        public bool IsSolid => Alive && Kind != EntityKind.Crystal;
+        public bool IsSolid => Alive && Kind != EntityKind.Crystal && !Flying;
+        /// <summary>Летает (небесный кит): клетку не занимает, под ним можно ходить, не мешает и не толкается.</summary>
+        public bool Flying;
         public bool IsHostile => Kind == EntityKind.Enemy || Kind == EntityKind.Boss;
 
         public override string ToString() => $"{Kind}#{Id} {Archetype} {Pos} hp={Hp}";

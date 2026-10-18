@@ -168,6 +168,9 @@ namespace CrystalAdventure.Core
         /// <summary>Архетип сегмента тела змеи (создаёт LevelSetup.Build по EntitySpec.Body).</summary>
         public const string SnakeBodyArchetype = "SnakeBody";
 
+        /// <summary>Небесный босс — летающий кит (SkyBrain): бомбы под свою тень каждый 3-й ход.</summary>
+        public const string SkyBossArchetype = "BossSky";
+
         /// <summary>Мозг по имени архетипа (имя = префаб во View).</summary>
         public static IEnemyBrain Create(string archetype)
         {

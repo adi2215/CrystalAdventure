@@ -61,11 +61,35 @@ static class SkyTests
             T.True(!plan2[0].Blocked, "not blocked");
         });
 
+        T.Run("sky whale: flies (walk under it, no touch death), bombs a cross under itself every 3rd turn, ignores tiles", () =>
+        {
+            // Кит стоит на месте («W»), герой ходит прямо под ним.
+            var lvl = WinterTests.Level("whale", "S#O#C");
+            lvl.enemies.Add(new LevelEnemy { cell = new Vector2Int(1, 0), archetype = EnemyBrains.SkyBossArchetype, facing = ItemType.Left, path = "W" });
+            var r = Run(lvl, "R R");
+            T.True(r.Final.Hero.Alive && r.Turns.Count == 2, "walked under the whale");
+            var w = LegacyLevelImport.ToSetup(lvl, Start(lvl)).Build();
+            var whale = w.Entities.First(e => e.Archetype == EnemyBrains.SkyBossArchetype);
+            T.True(whale.Flying && !whale.IsSolid && !whale.Deadly, "flying, not solid, not deadly");
+            // Ход 3 — бомба крестом под китом (клетка (1,0) и соседи): вернулся под кита — гибнет, ушёл на (3,0) — жив.
+            var bombed = Run(lvl, "R R L");
+            var hit = bombed.AllEvents.First(e => e.Type == GameEventType.Attacked);
+            T.True(hit.Style == SkyBrain.Bomb && hit.To == new Cell(1, 0), "bomb under the whale");
+            T.True(hit.Area.Contains(new Cell(0, 0)) && hit.Area.Contains(new Cell(2, 0)), "cross");
+            T.Outcome(Outcome.Lost, bombed);
+            T.True(Run(lvl, "R R R").Turns.Count == 3 && Run(lvl, "R R R").Final.Hero.Alive, "out of the cross — alive");
+            // Кит над облаком: облако не пропадает (летающий клеток не касается).
+            var cloud = WinterTests.Level("whale", "S#O#C");
+            cloud.enemies.Add(new LevelEnemy { cell = new Vector2Int(2, 0), archetype = EnemyBrains.SkyBossArchetype, facing = ItemType.Left, path = "RL" });
+            T.True(!Run(cloud, "B B").AllEvents.Any(e => e.Info == "vanished"), "whale does not touch clouds");
+        });
+
         var naive = new Dictionary<string, string[]>
         {
             { "LevelSky1", new[] { "repeat 4 { R } repeat 4 { L } F" } },
             { "LevelSky2", new[] { "repeat 4 { R }" } },
             { "LevelSky3", new[] { "repeat 4 { R }" } },
+            { "LevelBossSky", new[] { "repeat 4 { R } repeat 4 { F } repeat 4 { L }", "repeat 4 { F } repeat 4 { R } repeat 4 { B }" } },
         };
         foreach (var spec in SkyLevels.Specs)
         {

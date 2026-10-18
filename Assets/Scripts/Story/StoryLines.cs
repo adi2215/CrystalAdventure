@@ -54,6 +54,15 @@ public static class StoryLines
             }
         },
         {
+            "LevelBossSky", new[]
+            {
+                Ela("Look up, Cris! The Sky Whale is carrying a shard!"),
+                new Line("Sky Whale", "WOOOOOM..."),
+                Ela("It can't touch us up there... but it drops bombs right where its shadow is."),
+                Ela("When the shadow turns red, get out from under it!"),
+            }
+        },
+        {
             "LevelBossWinter", new[]
             {
                 Ela("Brrr... That's the Frost Diamond!"),

@@ -63,11 +63,14 @@ namespace CrystalAdventure.Core
                 if (e.Kind == EntityKind.Crystal) { w.Spawn(EntityKind.Crystal, pos, e.Facing, 1, e.Archetype ?? "Crystal"); continue; }
 
                 bool snake = e.Body > 0 && !string.IsNullOrEmpty(e.Script);
+                bool sky = e.Archetype == EnemyBrains.SkyBossArchetype;
                 IEnemyBrain brain = snake ? new SnakeBrain(e.Script, pos)
+                                  : sky ? new SkyBrain(e.Script)
                                   : !string.IsNullOrEmpty(e.Script) ? new ScriptedBrain(e.Script) : EnemyBrains.Create(e.Archetype);
                 var ent = w.Spawn(e.Kind, pos, e.Facing, 1, e.Archetype, brain);
                 EnemyBrains.ApplyStats(ent);
-                if (!string.IsNullOrEmpty(e.Script) || EnemyBrains.IsDeadlyOnTouch(e.Archetype)) ent.Deadly = true;
+                if ((!string.IsNullOrEmpty(e.Script) || EnemyBrains.IsDeadlyOnTouch(e.Archetype)) && !sky) ent.Deadly = true;
+                if (sky) ent.Flying = true; // кит в небе: касания нет, клетку не занимает
                 if (e.HpOverride > 0) ent.Hp = ent.MaxHp = e.HpOverride;
                 if (snake)
                 {

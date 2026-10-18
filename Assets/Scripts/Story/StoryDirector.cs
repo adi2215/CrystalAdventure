@@ -95,6 +95,7 @@ public class StoryDirector : MonoBehaviour
             case "Ela": return _ela;
             case "Cris": return _cris;
             case "Frost Diamond": return new Speaker { Name = who, Portrait = EnemyArt.FrostDiamond, Tag = BossColor, Pitch = 0.6f };
+            case "Sky Whale": return new Speaker { Name = who, Portrait = EnemyArt.SkyWhale, Tag = BossColor, Pitch = 0.45f };
             case "Forest Guardian": return new Speaker { Name = who, Portrait = _crisSprite, Tint = new Color(0.55f, 1f, 0.45f, 1f), Tag = new Color(0.3f, 0.55f, 0.3f, 1f), Pitch = 0.55f };
             default: return _narrator;
         }

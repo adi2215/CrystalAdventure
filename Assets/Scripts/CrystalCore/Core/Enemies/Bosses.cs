@@ -198,3 +198,43 @@ namespace CrystalAdventure.Core
         }
     }
 }
+
+namespace CrystalAdventure.Core
+{
+    /// <summary>
+    /// Небесный босс («BossSky», летает — Entity.Flying): кит над полем ползёт по маршруту по кругу.
+    /// Клетку не занимает — под ним можно ходить, касание не смертельно; на поле видна его тень.
+    /// Каждый period-й ход зависает и сбрасывает бомбу в клетку под собой: удар крестом (клетка
+    /// и 4 соседние). За ход до удара клетки подсвечиваются — «тень = прицел».
+    /// </summary>
+    public sealed class SkyBrain : IEnemyBrain
+    {
+        public const string Bomb = "bomb";
+
+        readonly string _script;
+        readonly int _period;
+        int _index;
+
+        public SkyBrain(string script, int period = 3)
+        {
+            _script = (script ?? "").Replace(" ", "").ToUpperInvariant();
+            _period = Math.Max(2, period);
+        }
+
+        public Intent Plan(World w, Entity self)
+        {
+            if ((w.Turn + 1) % _period == 0)
+            {
+                var area = new List<Cell>();
+                foreach (var c in new[] { self.Pos, self.Pos.Step(Dir.North), self.Pos.Step(Dir.East), self.Pos.Step(Dir.South), self.Pos.Step(Dir.West) })
+                    if (w.GetTile(c) != null) area.Add(c);
+                return new Intent { Kind = IntentKind.Attack, Area = area.ToArray(), Damage = 1, Target = self.Pos, Style = Bomb, Dir = self.Facing };
+            }
+            if (_script.Length == 0) return Intent.Wait;
+            char ch = _script[_index % _script.Length];
+            _index++;
+            // Летит над полем: клетки под маршрутом могут быть и пустыми — проверки шага нет.
+            return ScriptedBrain.TryDir(ch, out var d) ? Intent.Move(d) : Intent.Wait;
+        }
+    }
+}

@@ -49,7 +49,7 @@ namespace CrystalAdventure.EditorTools
 
         public static readonly ItemType[] MovesAndWhile = { ItemType.Forward, ItemType.Left, ItemType.Bottom, ItemType.Right, ItemType.While };
         public static SolutionCard C(ItemType t, int iterations = 1, int span = 0) => new SolutionCard { type = t, iterations = iterations, span = span };
-        static LevelEnemy E(int x, int y, string archetype, ItemType facing, string path = "", int body = 0) =>
+        public static LevelEnemy E(int x, int y, string archetype, ItemType facing, string path = "", int body = 0) =>
             new LevelEnemy { cell = new Vector2Int(x, y), archetype = archetype, facing = facing, path = path, body = body };
 
         const ItemType F = ItemType.Forward, B = ItemType.Bottom, L = ItemType.Left, R = ItemType.Right, W = ItemType.While;

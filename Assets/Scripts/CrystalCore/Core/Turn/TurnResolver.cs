@@ -243,7 +243,7 @@ namespace CrystalAdventure.Core
                 // Классический гриб: стоишь на грибе — шаг на 2 клетки (промежуточная клетка не нужна).
                 bool jump = w.Rules.ClassicMushroom && IsMushroom(w, e.Pos);
                 var m = new Mover { E = e, From = e.Pos, Dir = kv.Value.Dir, To = e.Pos.Step(kv.Value.Dir, jump ? 2 : 1), Jump = jump };
-                if (!w.CanStep(m.From, m.To))
+                if (!e.Flying && !w.CanStep(m.From, m.To)) // летающий — над чем угодно
                 {
                     m.Failed = true;
                     var target = w.GetTile(m.To);
@@ -257,7 +257,7 @@ namespace CrystalAdventure.Core
             while (changed)
             {
                 changed = false;
-                var live = movers.Where(m => !m.Failed).ToList();
+                var live = movers.Where(m => !m.Failed && !m.E.Flying).ToList(); // летающие никому не мешают
 
                 // Двое в одну клетку — оба стоят.
                 foreach (var g in live.GroupBy(m => m.To).Where(g => g.Count() > 1))
@@ -270,7 +270,7 @@ namespace CrystalAdventure.Core
                         { a.Failed = b.Failed = true; a.Why = b.Why = "swap"; changed = true; }
 
                 // В клетке стоит тот, кто не уходит.
-                foreach (var m in movers.Where(x => !x.Failed))
+                foreach (var m in movers.Where(x => !x.Failed && !x.E.Flying))
                 {
                     var occ = w.SolidAt(m.To);
                     if (occ == null || occ == m.E) continue;
@@ -321,7 +321,7 @@ namespace CrystalAdventure.Core
 
             // Эффекты клеток: сначала «ушёл», потом «пришёл».
             ctx.Phase = EventPhase.Effects;
-            var ok = movers.Where(m => !m.Failed).OrderBy(m => m.E.Id).ToList();
+            var ok = movers.Where(m => !m.Failed && !m.E.Flying).OrderBy(m => m.E.Id).ToList(); // летающий клеток не касается
             foreach (var m in ok)
             {
                 var t = w.GetTile(m.From);

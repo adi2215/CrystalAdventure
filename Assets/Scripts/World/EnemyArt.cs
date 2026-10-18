@@ -530,6 +530,95 @@ public static class EnemyArt
         "aaaaaaaaa",
     }, new Dictionary<char, Color> { { 'a', C255(60, 35, 30) }, { 'b', C255(150, 110, 80) }, { 'c', C255(20, 10, 10) } }, new Vector2(0.5f, 0f));
 
+    // ───────────── небесный кит («BossSky») ─────────────
+
+    static readonly string[] SkyWhaleRows =
+    {
+        "..o...............oooooooooooooo..........",
+        ".oboo..........ooobbbbbbbbbbbbbbooo.......",
+        ".obbbo........obbbllllllllllllllbbbo......",
+        ".obbbbo.....oobbblbbbbbbbbbbbbbblbbboo....",
+        ".obbbbboo..obbbbbbbbbbbbbbbbbbbbbbbbbbo...",
+        ".obbbbbbboobbbbbbbbbbbbbbbbbbbbbbbbbbbbo..",
+        ".obbbbbbbbobbbbbbbbbbbbbbbbbbbbbbhbbbbbo..",
+        ".obbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbkkbbbbbo.",
+        "..oooobbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbo.",
+        ".....obbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbo.",
+        "..oooobbbbbbbbbbbbbbbbbbbbbbbbbkkkkkkkkko.",
+        ".obbbbbbbbbwwwwwwwwwwwwwwwwwwwwwwwwwwwwo..",
+        ".obbbbbbbbowwwwswwswwswwswwswwswwswwswwo..",
+        ".obbbbbbbo.owwwswwswwsddswwswwswwswwswo...",
+        ".obbbbboo...oowswwswwswddddswwswwswwoo....",
+        ".obbbbo.......oswwswwswwddwswwswwswo......",
+        ".obbbo.........oooswwswwswwswwswooo.......",
+        ".oboo.............oooooooooooooo..........",
+        "..o.......................................",
+    };
+
+    /// <summary>Небесный кит: смотрит вправо (на экране), опора — центр (висит над тенью).</summary>
+    public static Sprite SkyWhale => Get("SkyWhale", SkyWhaleRows, new Dictionary<char, Color>
+    {
+        { 'o', C255(30, 40, 80) }, { 'b', C255(110, 170, 235) }, { 'w', C255(235, 245, 255) }, { 's', C255(200, 220, 245) },
+        { 'k', C255(20, 25, 50) }, { 'h', Color.white }, { 'd', C255(80, 130, 200) }, { 'l', C255(170, 215, 255) },
+    }, new Vector2(0.5f, 0.5f));
+
+    /// <summary>Тень летящего босса на поле — тёмный полупрозрачный овал по размеру грани (28×12).</summary>
+    public static Sprite FlyShadow
+    {
+        get
+        {
+            if (Cache.TryGetValue("FlyShadow", out var s) && s != null) return s;
+            var rows = new string[12];
+            for (int y = 0; y < 12; y++)
+            {
+                var chars = new char[28];
+                for (int x = 0; x < 28; x++)
+                {
+                    float dx = (x + 0.5f - 14f) / 14f, dy = (y + 0.5f - 6f) / 6f;
+                    float d = dx * dx + dy * dy;
+                    chars[x] = d > 1f ? '.' : d > 0.55f ? 'a' : 'b';
+                }
+                rows[y] = new string(chars);
+            }
+            var pal = new Dictionary<char, Color> { { 'a', new Color(0.05f, 0.05f, 0.15f, 0.25f) }, { 'b', new Color(0.05f, 0.05f, 0.15f, 0.45f) } };
+            return Cache["FlyShadow"] = PixelSprites.Make(rows, pal, default, new Vector2(0.5f, 0.5f));
+        }
+    }
+
+    /// <summary>Бомба кита (9×10), опора — низ.</summary>
+    public static Sprite Bomb => Get("Bomb", new[]
+    {
+        ".....y...",
+        "....yr...",
+        "....a....",
+        "..aaaaa..",
+        ".abbbbba.",
+        "abhbbbbba",
+        "abbbbbbba",
+        "abbbbbbba",
+        ".abbbbba.",
+        "..aaaaa..",
+    }, new Dictionary<char, Color>
+    {
+        { 'a', C255(20, 20, 35) }, { 'b', C255(55, 55, 80) }, { 'h', C255(140, 140, 170) }, { 'y', C255(255, 230, 90) }, { 'r', C255(255, 120, 60) },
+    }, new Vector2(0.5f, 0f));
+
+    /// <summary>Значок «будет бомба» над прицелом.</summary>
+    public static Sprite IconBomb => Get("IconBomb", new[]
+    {
+        "....y.y..",
+        ".....r...",
+        "....a....",
+        "..aaaaa..",
+        ".abhbbba.",
+        ".abbbbba.",
+        ".abbbbba.",
+        "..aaaaa..",
+    }, new Dictionary<char, Color>
+    {
+        { 'a', C255(20, 20, 35) }, { 'b', C255(55, 55, 80) }, { 'h', C255(140, 140, 170) }, { 'y', C255(255, 230, 90) }, { 'r', C255(255, 120, 60) },
+    }, new Vector2(0.5f, 0f));
+
     public static bool IsBoss(string archetype) => archetype == "WoodMechGuardian" || archetype == "FrostBallGeneral";
 
     public static Sprite Heart => Get("Heart", HeartRows, HeartPal, new Vector2(0.5f, 0.5f));

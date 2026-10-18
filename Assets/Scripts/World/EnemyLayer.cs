@@ -34,6 +34,10 @@ public static class EnemyLayer
         public Vector2Int Cell;
         /// <summary>Ледяной ромб висит над клеткой и покачивается — его не двигают шаги и волна.</summary>
         public bool Hovers;
+        /// <summary>Небесный кит: тело высоко в воздухе (Body), на поле — тень (Shadow); корень ходит по клеткам.</summary>
+        public bool Flying;
+        public SpriteRenderer Shadow;
+        public Transform Body;
     }
 
     static readonly Dictionary<int, View> Views = new Dictionary<int, View>();
@@ -53,6 +57,9 @@ public static class EnemyLayer
     const float BossScale = 1.35f;
     const float DiamondScale = 1.5f;
     const float DiamondHover = 0.06f;
+    const float WhaleScale = 1.4f;
+    const float WhaleHeight = 0.62f;    // насколько кит выше клетки (в единицах мира)
+    const int SkyOrder = 1200;          // кит — поверх всего поля
 
     /// <summary>На уровне есть враги — им управляет этот слой.</summary>
     public static bool Active { get; private set; }
@@ -152,7 +159,9 @@ public static class EnemyLayer
             if (e.Type == GameEventType.Attacked && e.Style != null && Views.TryGetValue(e.EntityId, out var boss))
             {
                 // Молния / супер-лёд ледяного босса: удар, частицы, волна по полю, замёрзшие клетки.
-                if (e.Style == SnakeBrain.Spikes || e.Style == SnakeBrain.Quake)
+                if (e.Style == SkyBrain.Bomb)
+                    Track(BombStrike(boss, e));
+                else if (e.Style == SnakeBrain.Spikes || e.Style == SnakeBrain.Quake)
                 {
                     // Лесная змея: шипы перед головой / удар хвостом — клетки берём из событий этого хода.
                     string info = e.Style == SnakeBrain.Spikes ? "spikes_up" : "collapsed";
@@ -276,6 +285,16 @@ public static class EnemyLayer
         }
         else
         {
+            if (archetype == EnemyBrains.SkyBossArchetype)
+            {
+                SpawnWhale(v, hero);
+                Views[id] = v;
+                SetOrder(v, DepthAt(cell));
+                Face(v, facing);
+                Track(PopIn(v));
+                if (Host != null) Running.Add(Host.StartCoroutine(WhaleBob(v)));
+                return;
+            }
             // Пушка, ледяной ромб и прочие — пиксель-арт.
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = IsDiamond(archetype) ? EnemyArt.FrostDiamond : EnemyArt.For(archetype);
@@ -300,6 +319,14 @@ public static class EnemyLayer
 
     static void SetOrder(View v, int order)
     {
+        if (v.Flying)
+        {
+            // Кит всегда над полем; тень — на грани клетки, под персонажами (как красные клетки).
+            if (v.Main != null) v.Main.sortingOrder = SkyOrder;
+            var tile = TileAt(v.Cell);
+            if (v.Shadow != null) v.Shadow.sortingOrder = tile != null ? SortDepth.Marker(tile) - 1 : 0;
+            return;
+        }
         for (int i = 0; i < v.Parts.Length; i++)
             if (v.Parts[i] != null) v.Parts[i].sortingOrder = order + v.Offsets[i];
     }
@@ -328,6 +355,8 @@ public static class EnemyLayer
             {
                 foreach (var c in e.Area) AddMarker(root, new Vector2Int(c.X, c.Y));         // выстрел пушки / удар босса
                 if (e.Style != null) AddReticle(root, new Vector2Int(e.To.X, e.To.Y), e.Style, e.EntityId);
+                if (e.Style == SkyBrain.Bomb && Views.TryGetValue(e.EntityId, out var whale) && whale.Shadow != null)
+                    whale.Shadow.color = new Color(1f, 0.25f, 0.2f, 1f); // тень краснеет — сюда упадёт бомба
             }
             else if (e.Info == IntentKind.Move.ToString() && Views.TryGetValue(e.EntityId, out var v) && v.Archetype != EnemyBrains.SnakeBodyArchetype)
             {
@@ -353,6 +382,7 @@ public static class EnemyLayer
 
     static void ClearMarkers()
     {
+        foreach (var v in Views.Values) if (v.Flying && v.Shadow != null) v.Shadow.color = Color.white;
         foreach (var m in Markers) if (m != null) Object.Destroy(m);
         Markers.Clear();
     }
@@ -396,7 +426,8 @@ public static class EnemyLayer
         icon.transform.SetParent(root, false);
         icon.sprite = style == StormBossBrain.Ice ? EnemyArt.IconFlake
                     : style == SnakeBrain.Spikes ? EnemyArt.IconSpikes
-                    : style == SnakeBrain.Quake ? EnemyArt.IconCrack : EnemyArt.IconBolt;
+                    : style == SnakeBrain.Quake ? EnemyArt.IconCrack
+                    : style == SkyBrain.Bomb ? EnemyArt.IconBomb : EnemyArt.IconBolt;
         icon.sortingLayerID = layer;
         icon.sortingOrder = (tile != null ? SortDepth.Character(tile) : SortDepth.Character(0, cell.x, cell.y)) + 400; // над персонажами — значок «что будет»
         icon.transform.localScale = Vector3.one * 1.5f;
@@ -581,6 +612,81 @@ public static class EnemyLayer
         if (go != null) Object.Destroy(go);
     }
 
+    // ───────────── небесный кит ─────────────
+
+    static void SpawnWhale(View v, CharacterCode hero)
+    {
+        float scale = hero != null ? Mathf.Abs(hero.transform.localScale.z) : 1f;
+        var layer = hero != null && hero.MainRenderer != null ? hero.MainRenderer.sortingLayerID : 0;
+
+        var shadow = new GameObject("Shadow").AddComponent<SpriteRenderer>();
+        shadow.transform.SetParent(v.Go.transform, false);
+        shadow.transform.localPosition = new Vector3(0f, 0.02f, 0f);
+        shadow.sprite = EnemyArt.FlyShadow;
+        shadow.sortingLayerID = layer;
+
+        var body = new GameObject("Body").AddComponent<SpriteRenderer>();
+        body.transform.SetParent(v.Go.transform, false);
+        body.transform.localPosition = new Vector3(0f, WhaleHeight, 0f);
+        body.transform.localScale = Vector3.one * scale * WhaleScale;
+        body.sprite = EnemyArt.SkyWhale;
+        body.sortingLayerID = layer;
+        if (hero != null && hero.MainRenderer != null) body.sharedMaterial = hero.MainRenderer.sharedMaterial;
+
+        v.Flying = true;
+        v.Shadow = shadow;
+        v.Body = body.transform;
+        v.Main = body;
+        v.Parts = new[] { body };
+        v.Offsets = new[] { 0 };
+    }
+
+    /// <summary>Кит плывёт по воздуху: тело покачивается вверх-вниз (на целые пиксели), тень дышит.</summary>
+    static IEnumerator WhaleBob(View v)
+    {
+        for (float t = 0f; v.Go != null && v.Body != null; t += Time.deltaTime)
+        {
+            v.Body.localPosition = new Vector3(0f, WhaleHeight + Mathf.Round(Mathf.Sin(t * 1.8f) * 3f) / 100f, 0f);
+            if (v.Shadow != null) v.Shadow.transform.localScale = Vector3.one * (1f - 0.06f * Mathf.Sin(t * 1.8f));
+            yield return null;
+        }
+    }
+
+    /// <summary>Бомба кита: падает из-под брюха в клетку тени — взрыв, дым, волна по полю.</summary>
+    static IEnumerator BombStrike(View whale, GameEvent e)
+    {
+        var heroSr = Hero != null ? Hero.MainRenderer : null;
+        int layer = heroSr != null ? heroSr.sortingLayerID : 0;
+        var target = new Vector2Int(e.To.X, e.To.Y);
+        Vector3 at = WorldOf(target);
+        var bomb = new GameObject("Bomb").AddComponent<SpriteRenderer>();
+        bomb.transform.SetParent(Root, false);
+        bomb.sprite = EnemyArt.Bomb;
+        bomb.sortingLayerID = layer;
+        bomb.sortingOrder = SkyOrder - 1;
+        bomb.transform.localScale = Vector3.one * 1.6f;
+        Vector3 from = whale.Body != null ? whale.Body.position : at + Vector3.up * WhaleHeight;
+        PixelSfx.Play(Sfx.Whoosh, 0.7f, 0.8f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.3f)
+        {
+            if (bomb == null) yield break;
+            bomb.transform.position = Snap(Vector3.Lerp(from, at, t * t));
+            yield return null;
+        }
+        if (bomb != null) Object.Destroy(bomb.gameObject);
+
+        PixelSfx.Play(Sfx.Edge, 1f, 0.4f);
+        var fire = new[] { Color.white, new Color(1f, 0.85f, 0.4f, 1f), new Color(1f, 0.5f, 0.2f, 1f), new Color(0.45f, 0.42f, 0.5f, 1f) };
+        PixelFX.Burst(at + Vector3.up * 0.06f, fire, 18, 1f, 0.6f, 1.2f, layer, SkyOrder - 2, PixelFX.Dot, 1.3f, 0.7f);
+        foreach (var c in e.Area ?? new Cell[0])
+        {
+            var cell = new Vector2Int(c.X, c.Y);
+            if (cell == target || TileAt(cell) == null) continue;
+            PixelFX.Burst(WorldOf(cell) + Vector3.up * 0.05f, fire, 5, 0.4f, 0.3f, 1f, layer, DepthAt(cell) + 3, PixelFX.Dot, 0.9f, 0.5f);
+        }
+        yield return BoardWave.Play(target, 0.07f, WaveRiders);
+    }
+
     /// <summary>Кто стоит на клетке (для волны): герой и враги, кроме висящего ромба.</summary>
     static IEnumerable<Transform> WaveRiders(Vector2Int cell)
     {
@@ -589,7 +695,7 @@ public static class EnemyLayer
             hero.activeTile.gridLocation.x == cell.x && hero.activeTile.gridLocation.y == cell.y)
             yield return hero.transform;
         foreach (var v in Views.Values)
-            if (!v.Hovers && v.Go != null && v.Cell == cell) yield return v.Go.transform;
+            if (!v.Hovers && !v.Flying && v.Go != null && v.Cell == cell) yield return v.Go.transform;
         if (SpikeViews.TryGetValue(cell, out var spikes) && spikes != null) yield return spikes.transform;
     }
 
