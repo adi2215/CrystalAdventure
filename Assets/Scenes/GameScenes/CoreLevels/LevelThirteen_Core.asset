@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ed1307d56fffadb4a82719af511bbef0, type: 3}
+  m_Name: LevelThirteen_Core
+  m_EditorClassIdentifier: 
+  biome: 0
+  legacyLevel: {fileID: 11400000, guid: 95a168f874344779ac70414075f0f19e, type: 2}
+  tileOverrides: []
+  heroCell: {x: -1, y: 0}
+  heroFacing: 2
+  entities: []
+  rules:
+    HeroHp: 3
+    MaxStepHeight: 1000
+    AutoPickupCrystals: 1
+    RequireAllEnemiesDefeated: 0
+    SuperAttacks: 1
+    MaxTurns: 300
+    WindActive: 0
+    WindDir: 1
+    ClassicMushroom: 1
+    PickupOnArrival: 1
+  optimalBlocks: 6
+  goodBlocks: 8
+  referenceSolution: def F1 { } def F2 { } R R R R F R

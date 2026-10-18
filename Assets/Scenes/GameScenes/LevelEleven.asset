@@ -13,127 +13,87 @@ MonoBehaviour:
   m_Name: LevelEleven
   m_EditorClassIdentifier: 
   tiles:
-  - position: {x: -2, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
-    superTileType: 0
   - position: {x: 0, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
     superTileType: 0
+    color: 2
   - position: {x: 1, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
     superTileType: 0
+    color: 2
   - position: {x: 2, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
     superTileType: 0
-  - position: {x: 4, y: 0, z: 0}
+    color: 2
+  - position: {x: 3, y: 0, z: 0}
     tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
-    superTileType: 0
-  - position: {x: 5, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 0
-  - position: {x: 6, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 0
-  - position: {x: 8, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
-    superTileType: 0
-  - position: {x: 9, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 0
-  - position: {x: 10, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 0
-  - position: {x: 12, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
-    superTileType: 0
-  - position: {x: 13, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 0
-  - position: {x: 14, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 0
-  - position: {x: 16, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
-    superTileType: 0
-  - position: {x: 17, y: 0, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 2
-  - position: {x: -2, y: 1, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
-  - position: {x: 0, y: 1, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
-  - position: {x: 2, y: 1, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
-  - position: {x: 4, y: 1, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
-  - position: {x: 6, y: 1, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
-  - position: {x: 8, y: 1, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
-  - position: {x: 10, y: 1, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
-  - position: {x: 12, y: 1, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
-  - position: {x: 14, y: 1, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
-  - position: {x: 16, y: 1, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
-  - position: {x: -2, y: 2, z: 0}
-    tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
-    superTileType: 0
+    superTileType: 1
+    color: 1
   - position: {x: -1, y: 2, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 0
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    superTileType: 1
+    color: 1
   - position: {x: 0, y: 2, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    superTileType: 2
+    color: 3
+  - position: {x: 1, y: 2, z: 0}
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
     superTileType: 0
+    color: 3
   - position: {x: 2, y: 2, z: 0}
     tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
     superTileType: 0
+    color: 3
   - position: {x: 3, y: 2, z: 0}
     tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
     superTileType: 0
-  - position: {x: 4, y: 2, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 0
-  - position: {x: 6, y: 2, z: 0}
+    color: 3
+  - position: {x: -1, y: 4, z: 0}
     tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
     superTileType: 0
-  - position: {x: 7, y: 2, z: 0}
+    color: 2
+  - position: {x: 0, y: 4, z: 0}
     tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
     superTileType: 0
-  - position: {x: 8, y: 2, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 0
-  - position: {x: 10, y: 2, z: 0}
+    color: 2
+  - position: {x: 1, y: 4, z: 0}
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    superTileType: 1
+    color: 1
+  - position: {x: -2, y: 6, z: 0}
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    superTileType: 1
+    color: 1
+  - position: {x: -1, y: 6, z: 0}
     tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
     superTileType: 0
-  - position: {x: 11, y: 2, z: 0}
+    color: 3
+  - position: {x: 0, y: 6, z: 0}
     tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
     superTileType: 0
-  - position: {x: 12, y: 2, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
+    color: 3
+  - position: {x: 1, y: 6, z: 0}
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
     superTileType: 0
-  - position: {x: 14, y: 2, z: 0}
+    color: 3
+  - position: {x: -2, y: 8, z: 0}
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    superTileType: 0
+    color: 2
+  - position: {x: -1, y: 8, z: 0}
     tile: {fileID: 11400000, guid: fe3841476b4d00144af3423a02823130, type: 2}
     superTileType: 0
-  - position: {x: 15, y: 2, z: 0}
+    color: 2
+  - position: {x: 0, y: 8, z: 0}
     tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
     superTileType: 0
-  - position: {x: 16, y: 2, z: 0}
-    tile: {fileID: 11400000, guid: 31d5ccdc0f354844b897d0c6302e4a7f, type: 2}
-    superTileType: 0
-  characterPos: {x: -0.32, y: -1.5799999, z: 1.001}
+    color: 2
+  - position: {x: 1, y: 8, z: 0}
+    tile: {fileID: 11400000, guid: 9893c68a16d7b8141a89f44c806a7a61, type: 2}
+    superTileType: 2
+    color: 0
+  characterPos: {x: 0, y: -1.42, z: 1.001}
   panels:
   - panelName: Main
     commands:
@@ -148,34 +108,38 @@ MonoBehaviour:
     - {fileID: 11400000, guid: c4b68b0a1ca666d4398220a5925c3e91, type: 2}
     - {fileID: 11400000, guid: a36b4ddd499e17b45a04f767ed85509c, type: 2}
     - {fileID: 11400000, guid: 3761fbde5ebc4dc4fa22aada50002b92, type: 2}
+    - {fileID: 11400000, guid: ad319c635084ceb488f2d45cc16e3bdd, type: 2}
   dialog: {fileID: 0}
-  optimalCards: 13
+  tutorial: {fileID: 0}
+  optimalCards: 7
   solutionMain:
   - type: 4
     iterations: 1
+    span: 0
+    color: 0
   - type: 4
     iterations: 1
+    span: 0
+    color: 0
   - type: 4
     iterations: 1
-  - type: 4
-    iterations: 1
-  - type: 4
-    iterations: 1
+    span: 0
+    color: 0
   solutionF1:
   - type: 0
     iterations: 1
-  - type: 0
+    span: 0
+    color: 0
+  - type: 1
     iterations: 1
+    span: 0
+    color: 3
   - type: 2
     iterations: 1
-  - type: 2
-    iterations: 1
-  - type: 3
-    iterations: 1
-  - type: 3
-    iterations: 1
-  - type: 2
-    iterations: 1
-  - type: 2
-    iterations: 1
+    span: 0
+    color: 2
+  - type: 6
+    iterations: 4
+    span: 0
+    color: 0
   solutionF2: []
