@@ -16,6 +16,7 @@ namespace CrystalAdventure.Core
         public Dir Direction;
         public bool UseGlobalWind = true;
         public int Period = 2, Offset, Durability = 1, RespawnTurns = 3;
+        public int Color;             // 0 — без цвета; иначе как TileColor старой игры (1 Red, 2 Blue, 3 Yellow)
     }
 
     [Serializable]
@@ -26,6 +27,10 @@ namespace CrystalAdventure.Core
         public int X, Y;
         public Dir Facing = Dir.East;
         public int HpOverride;        // 0 = стандартное HP архетипа
+        /// <summary>Маршрут по кругу (ScriptedBrain): F B L R — шаг, W — стоять. Пусто — мозг по архетипу.</summary>
+        public string Script;
+        /// <summary>Змея: сколько сегментов тела за головой (стоят на клетках, пройденных по маршруту до старта).</summary>
+        public int Body;
     }
 
     [Serializable]
@@ -48,6 +53,7 @@ namespace CrystalAdventure.Core
                 var tile = w.SetTile(new Cell(t.X, t.Y), t.Type, t.Height);
                 tile.Channel = t.Channel; tile.Direction = t.Direction; tile.UseGlobalWind = t.UseGlobalWind;
                 tile.Period = t.Period; tile.Offset = t.Offset; tile.Durability = t.Durability; tile.RespawnTurns = t.RespawnTurns;
+                tile.Color = t.Color;
             }
             // Герой первым — тогда у него Id = 1 и он всегда ходит первым в журнале.
             foreach (var e in Entities.OrderBy(x => x.Kind == EntityKind.Hero ? 0 : 1))
@@ -56,9 +62,28 @@ namespace CrystalAdventure.Core
                 if (e.Kind == EntityKind.Hero) { w.Spawn(EntityKind.Hero, pos, e.Facing); continue; }
                 if (e.Kind == EntityKind.Crystal) { w.Spawn(EntityKind.Crystal, pos, e.Facing, 1, e.Archetype ?? "Crystal"); continue; }
 
-                var ent = w.Spawn(e.Kind, pos, e.Facing, 1, e.Archetype, EnemyBrains.Create(e.Archetype));
+                bool snake = e.Body > 0 && !string.IsNullOrEmpty(e.Script);
+                bool sky = e.Archetype == EnemyBrains.SkyBossArchetype;
+                IEnemyBrain brain = snake ? new SnakeBrain(e.Script, pos)
+                                  : sky ? new SkyBrain(e.Script)
+                                  : !string.IsNullOrEmpty(e.Script) ? new ScriptedBrain(e.Script) : EnemyBrains.Create(e.Archetype);
+                var ent = w.Spawn(e.Kind, pos, e.Facing, 1, e.Archetype, brain);
                 EnemyBrains.ApplyStats(ent);
+                if ((!string.IsNullOrEmpty(e.Script) || EnemyBrains.IsDeadlyOnTouch(e.Archetype)) && !sky) ent.Deadly = true;
+                if (sky) ent.Flying = true; // кит в небе: касания нет, клетку не занимает
                 if (e.HpOverride > 0) ent.Hp = ent.MaxHp = e.HpOverride;
+                if (snake)
+                {
+                    // Тело — сразу за головой (Id по порядку: каждый сегмент планирует после ведущего).
+                    var leader = ent;
+                    foreach (var c in SnakeBrain.BodyCells(e.Script, pos, e.Body))
+                    {
+                        var seg = w.Spawn(EntityKind.Enemy, c, DirExtensions.Towards(c, leader.Pos), 1, EnemyBrains.SnakeBodyArchetype, new SnakeBodyBrain(leader));
+                        seg.Deadly = true;
+                        leader = seg;
+                    }
+                    ((SnakeBrain)brain).Tail = leader;
+                }
             }
             if (w.Hero == null) throw new InvalidOperationException($"Level {Id}: no hero");
             return w;
@@ -102,6 +127,8 @@ namespace CrystalAdventure.Core
         public ActionType Action;
         public int BlockId;              // какой блок программы подсветить
         public List<GameEvent> Events;
+        /// <summary>Карточка пропущена (условие по цвету не выполнено): мир не менялся, враги не ходили.</summary>
+        public bool Skipped;
     }
 
     public sealed class SimulationResult
@@ -115,6 +142,10 @@ namespace CrystalAdventure.Core
         public World Final;
 
         public bool Won => Outcome == Outcome.Won;
+
+        /// <summary>Сколько раз герой упёрся в край поля («чуть не упал») — для окна победы.</summary>
+        public int EdgeHits => Final == null || Final.Hero == null ? 0 :
+            Turns.SelectMany(t => t.Events).Count(e => e.Type == GameEventType.Bumped && e.EntityId == Final.Hero.Id && e.Info == TurnResolver.EdgeReason);
         public IEnumerable<GameEvent> AllEvents => InitialEvents.Concat(Turns.SelectMany(t => t.Events));
     }
 
@@ -140,15 +171,26 @@ namespace CrystalAdventure.Core
 
             while (true)
             {
-                if (IsWon(world)) { Finish(result, Outcome.Won, "Level complete", level); break; }
+                // Сначала смерть героя: если в одном ходу пали и босс, и герой (его добил миньон) — это поражение.
                 if (!world.Hero.Alive) { Finish(result, Outcome.Lost, "Hero defeated", level); break; }
-                if (world.Turn >= world.Rules.MaxTurns) { Finish(result, Outcome.TurnLimit, "Too many turns", level); break; }
+                if (IsWon(world)) { Finish(result, Outcome.Won, "Level complete", level); break; }
+                // Считаем записи, а не world.Turn: пропущенные карточки ход мира не двигают,
+                // но бесконечная рекурсия из одних пропусков тоже должна остановиться.
+                if (result.Turns.Count >= world.Rules.MaxTurns) { Finish(result, Outcome.TurnLimit, "Too many turns", level); break; }
 
                 if (!runner.Next(world, out var action))
                 {
                     if (runner.Status == RunnerStatus.Error) Finish(result, Outcome.Error, runner.Error, level);
                     else Finish(result, Outcome.ProgramEnded, "Program ended before the goal", level);
                     break;
+                }
+
+                if (runner.Skipped)
+                {
+                    // Как в старой игре: карточка «гаснет», герой стоит, ход мира не тратится.
+                    var skip = new GameEvent(GameEventType.Skipped, EventPhase.Prepare) { EntityId = world.Hero.Id, Cell = world.Hero.Pos, Dir = world.Hero.Facing };
+                    result.Turns.Add(new TurnRecord { Turn = world.Turn, Action = action, BlockId = runner.CurrentBlockId, Events = new List<GameEvent> { skip }, Skipped = true });
+                    continue;
                 }
 
                 var events = TurnResolver.Resolve(world, action);

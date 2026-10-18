@@ -20,6 +20,19 @@ public class LevelSt : ScriptableObject
     [Tooltip("Пошаговый туториал (Create → Crystal Adventure → Tutorial). Показывается, пока уровень не пройден; старый диалог тогда не открывается.")]
     public TutorialScript tutorial;
 
+    [Header("Враги (ядро CrystalCore)")]
+    [Tooltip("Враги уровня. Archetype: Walker (синий куб по маршруту), BossForest (с body > 0 — змея из кубиков: шипы и удар хвостом), BossWinter (ледяной ромб, без маршрута), FrostTurret (пушка). Касание — смерть.")]
+    public List<LevelEnemy> enemies = new List<LevelEnemy>();
+    [Tooltip("Здоровье героя на уровне с врагами (пока у героя одна жизнь)")] [Min(1)] public int heroHp = 1;
+    [Tooltip("Сколько карточек «Супер-атака» сработает за уровень")] [Min(0)] public int superAttacks = 1;
+
+    public bool HasEnemies => enemies != null && enemies.Count > 0;
+    public bool HasSpikes => tiles != null && tiles.Exists(t => t != null && t.superTileType == SuperBlocks.Spikes);
+    public bool HasSkyTiles => tiles != null && tiles.Exists(t => t != null &&
+        (t.superTileType == SuperBlocks.Cloud || t.superTileType == SuperBlocks.Wind || t.superTileType == SuperBlocks.Teleport));
+    /// <summary>Уровень понимает только ядро (враги, шипы, клетки неба): старый решатель и эталон старых правил его не знают.</summary>
+    public bool NeedsCore => HasEnemies || HasSpikes || HasSkyTiles;
+
     [Header("Решение — заполняет Crystal Adventure → Редактор уровней")]
     [Tooltip("Минимум карточек для прохождения. 0 — не посчитано (тогда звёзды по общим порогам).")]
     public int optimalCards;
@@ -58,6 +71,19 @@ public class SolutionCard
     }
 }
 
+/// <summary>Враг на старте уровня. facing — куда смотрит, теми же стрелками, что карточки (Forward = вверх по сетке).</summary>
+[System.Serializable]
+public class LevelEnemy
+{
+    public Vector2Int cell;
+    public string archetype = "Walker";
+    public ItemType facing = ItemType.Left;
+    [Tooltip("Маршрут по кругу: F B L R — шаг вверх/вниз/влево/вправо по сетке (как карточки), W — стоять. Например RRLL.")]
+    public string path = "";
+    [Tooltip("Змея (BossForest): сколько кубиков тела за головой. Тело стоит на клетках, которые голова прошла по маршруту до старта.")]
+    [Min(0)] public int body;
+}
+
 [System.Serializable]
 public class Panels
 {
@@ -73,6 +99,12 @@ public class TileInfo
     public SuperBlocks superTileType = SuperBlocks.None;
     [Tooltip("Цвет клетки для условий: покрашенная карточка срабатывает только на клетке своего цвета")]
     public TileColor color = TileColor.None;
+    [Tooltip("Шипы: в какой из трёх ходов поднимаются (0 — ходы 3, 6, 9…; 1 — 2, 5, 8…; 2 — 1, 4, 7…)")]
+    [Range(0, 2)] public int phase;
+    [Tooltip("Ветер: куда сдвигает (как карточки: Forward / Bottom / Left / Right)")]
+    public ItemType windDir = ItemType.Right;
+    [Tooltip("Телепорт: пара — два телепорта с одинаковым номером")]
+    [Min(0)] public int channel;
 }
 
 /// <summary>Цвет клетки / условие карточки.</summary>
@@ -84,9 +116,19 @@ public enum TileColor
     Yellow,
 }
 
+/// <summary>
+/// Особая клетка. Значения не переставлять — они хранятся в ассетах уровней числом.
+/// Ice и Crumbling — клетки главы Winter (см. World/SpecialTiles и ядро CrystalCore).
+/// </summary>
 public enum SuperBlocks
 {
     None,
     Mushroom,
-    Crystal
+    Crystal,
+    Ice,        // лёд: встал — скользишь дальше в ту же сторону до обычной клетки или края
+    Crumbling,  // рассыпающаяся плита: по ней можно пройти один раз — после ухода она падает
+    Spikes,     // шипы (Forest): поднимаются каждый 3-й ход (TileInfo.phase — в какой), стоишь там — смерть
+    Cloud,      // облако (Sky): сошёл с него — пропадает на 3 хода, потом возвращается
+    Wind,       // ветер (Sky): в конце хода сдвигает стоящего на клетку по стрелке (TileInfo.windDir)
+    Teleport,   // телепорт (Sky): встал — переносит на парный (тот же TileInfo.channel)
 }

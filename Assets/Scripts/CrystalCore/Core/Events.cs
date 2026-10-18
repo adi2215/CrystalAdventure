@@ -38,6 +38,8 @@ namespace CrystalAdventure.Core
         Frozen,         // клетки превратились в лёд
         Won,
         Lost,
+        Skipped,        // карточка с условием по цвету пропущена: герой стоит, ход мира не тратится
+        ArmorGained,    // враг надел ледяную броню (босс в новой фазе) — View показывает её сразу
     }
 
     public sealed class GameEvent
@@ -52,6 +54,8 @@ namespace CrystalAdventure.Core
         public int Amount;
         public Cell[] Area;
         public string Info;
+        /// <summary>Вид удара (Intent.Style) — у IntentPlanned и Attacked; цель удара тогда в To.</summary>
+        public string Style;
 
         public GameEvent(GameEventType type, EventPhase phase) { Type = type; Phase = phase; }
 

@@ -44,6 +44,7 @@ public class CharacterCode : MonoBehaviour
 
     private Sprite _frontSprite;
     private SpriteRenderer[] _renderers;
+    private Color[] _baseColors; // исходные цвета куба и его детей (тень и т.п.) — для вспышек урона и Rewind
 
     [Header("Край: «чуть не упал»")]
     [Tooltip("Насколько куб выходит к краю клетки (доля шага)")] [Range(0.1f, 0.6f)] public float edgeReach = 0.42f;
@@ -100,6 +101,8 @@ public class CharacterCode : MonoBehaviour
 
     public OverlayTile StartTile => startTile;
     public SpriteRenderer MainRenderer => order;
+    /// <summary>Спрайт «лицом к камере» (копии куба — враги и боссы — берут его, EnemyLayer).</summary>
+    public Sprite FrontSprite => _frontSprite;
 
     private void Awake()
     {
@@ -107,6 +110,10 @@ public class CharacterCode : MonoBehaviour
         order = GetComponent<SpriteRenderer>();
         if (order != null) _frontSprite = order.sprite;
         _renderers = GetComponentsInChildren<SpriteRenderer>(true);
+        _baseColors = new Color[_renderers.Length];
+        for (int i = 0; i < _renderers.Length; i++) _baseColors[i] = _renderers[i] != null ? _renderers[i].color : Color.white;
+        _baseOrders = new int[_renderers.Length];
+        for (int i = 0; i < _renderers.Length; i++) _baseOrders[i] = _renderers[i] != null ? _renderers[i].sortingOrder : 0;
         _juice = GetComponent<HeroJuice>();
         if (_juice == null) _juice = gameObject.AddComponent<HeroJuice>();
     }
@@ -163,11 +170,7 @@ public class CharacterCode : MonoBehaviour
         if ((new Vector2(start.x, start.y) - new Vector2(end.x, end.y)).sqrMagnitude < 0.09f) start = end + jumpInOffset;
         float height = jumpInHeight + Vector3.Distance(start, end) * 0.15f;
 
-        if (tile != null)
-        {
-            var tr = tile.GetComponent<SpriteRenderer>();
-            if (order != null && tr != null) order.sortingOrder = tr.sortingOrder + OrderAboveTile;
-        }
+        if (tile != null) ApplyOrder(tile);
 
         PixelSfx.Play(Sfx.Jump, 0.7f, 0.9f);
         Squash(0.25f);
@@ -254,6 +257,18 @@ public class CharacterCode : MonoBehaviour
         _run = StartCoroutine(RunRoutine(queue, onDone, onStep, onEdge, canRun, onSkip));
     }
 
+    /// <summary>
+    /// То же, но КУДА идти, уже решило новое ядро (MovingManager.useCrystalCore → CoreRunBridge):
+    /// шаг i плана = шаг i очереди queue. Анимации, кристаллы и победа — прежние.
+    /// </summary>
+    public void RunPlan(List<Item> queue, IReadOnlyList<CrystalAdventure.UnityLayer.CorePlannedStep> plan, Action onDone,
+                        Action<int> onStep, Action<int> onEdge, Action<int> onSkip)
+    {
+        StopRun();
+        if (button != null) button.enabled = true;
+        _run = StartCoroutine(RunRoutine(queue, onDone, onStep, onEdge, null, onSkip, plan));
+    }
+
     [Tooltip("Пауза, когда карточка пропущена (условие не выполнено), сек")]
     public float skipPause = 0.22f;
 
@@ -273,6 +288,7 @@ public class CharacterCode : MonoBehaviour
     {
         if (!_landed) return; // ещё запрыгивает на поле — сбрасывать нечего
         StopRun();
+        RestoreLook();
         transform.rotation = Quaternion.identity; // мог остаться наклон после края
         MoveToStartTile();
         FaceDefault();
@@ -285,17 +301,21 @@ public class CharacterCode : MonoBehaviour
         PositionCharacterOnLine(startTile, collect: false);
     }
 
+    /// <param name="plan">null — старый путь (WayTiles решает сам); иначе шаги, посчитанные ядром.</param>
     IEnumerator RunRoutine(List<Item> queue, Action onDone, Action<int> onStep, Action<int> onEdge,
-                           Func<int, OverlayTile, bool> canRun = null, Action<int> onSkip = null)
+                           Func<int, OverlayTile, bool> canRun = null, Action<int> onSkip = null,
+                           IReadOnlyList<CrystalAdventure.UnityLayer.CorePlannedStep> plan = null)
     {
         var map = MapManager.Instance != null ? MapManager.Instance.map : null;
         int token = _runToken;
+        int count = plan != null ? plan.Count : queue.Count;
 
-        for (int i = 0; i < queue.Count; i++)
+        for (int i = 0; i < count; i++)
         {
             if (token != _runToken) yield break;
-            var cmd = queue[i];
-            if (canRun != null && !canRun(i, _tile))
+            var cmd = i < queue.Count ? queue[i] : null;
+            bool skipped = plan != null ? plan[i].Skipped : canRun != null && !canRun(i, _tile);
+            if (skipped)
             {
                 // Условие не выполнено (не тот цвет клетки) — карточка пропускается.
                 onSkip?.Invoke(i);
@@ -305,13 +325,44 @@ public class CharacterCode : MonoBehaviour
             }
             if (cmd != null) Face(cmd.type);
             onStep?.Invoke(i);
-            var step = WayTiles.Resolve(_tile, cmd, map);
+            bool core = plan != null;
+            var planned = core ? plan[i] : default;
+            EnemyLayer.BeginTurn(i); // враги шагают одновременно с кубом
+            if (_shieldFx != null) _shieldFx.SetActive(false);
 
-            if (step.target == null)
+            var step = core ? PlannedStep(planned, map) : WayTiles.Resolve(_tile, cmd, map);
+            var leftTile = _tile;
+
+            if (core && !planned.IsMove)
+            {
+                // Не ход: удар, супер-удар, щит, ожидание (уровни с врагами).
+                yield return DoAction(planned);
+            }
+            else if (core && planned.Blocked)
+            {
+                // Упёрся во врага (или стену) — это не край: толкнулся и остался, «чуть не упал» не считается.
+                yield return Bump(new Vector3Int(planned.Facing.x, planned.Facing.y, 0));
+            }
+            else if (core && planned.HeroDied && !planned.Moved)
+            {
+                // Коснулся врага в этом шаге — ядро шаг не засчитало. Это не край: рывок к врагу, дальше телепорт.
+                yield return Bump(cmd != null ? WayTiles.Direction(cmd.type) : Vector3Int.zero);
+            }
+            else if (step.target == null)
             {
                 // Дальше пусто — куб доходит до края, балансирует и возвращается. Ход потрачен.
                 onEdge?.Invoke(i);
-                yield return EdgeTeeter(WayTiles.Direction(cmd.type));
+                yield return EdgeTeeter(cmd != null ? WayTiles.Direction(cmd.type) : Vector3Int.zero);
+            }
+            else if (step.slid && step.via != null)
+            {
+                // Лёд: встал на первую ледяную клетку (шагом или прыжком с гриба) и скользит дальше.
+                if (step.fromMushroom) yield return JumpToTile(step.via);
+                else yield return MoveToTile(step.via);
+                if (token != _runToken) yield break;
+                if (SpecialTiles.IsCrumbling(leftTile)) SpecialTiles.Crumble(leftTile);
+                yield return SlideToTile(step.target);
+                if (step.onMushroom) yield return new WaitForSeconds(waitOnMushroom);
             }
             else if (step.fromMushroom || step.onMushroom)
             {
@@ -324,10 +375,42 @@ public class CharacterCode : MonoBehaviour
             }
             if (token != _runToken) yield break; // победа или Rewind прямо на этом шаге
 
+            // Клетки неба: после шага сдуло ветром или перенёс телепорт.
+            if (core && planned.Special != CrystalAdventure.UnityLayer.SpecialMove.None)
+            {
+                yield return SpecialMove(planned, map);
+                if (token != _runToken) yield break;
+            }
+
+            // Ушёл с рассыпающейся плиты — она падает (Winter). Повторный вызов безопасен.
+            if (step.target != null && leftTile != null && leftTile != _tile && SpecialTiles.IsCrumbling(leftTile))
+                SpecialTiles.Crumble(leftTile);
+
+            // Удары врагов, урон, смерти, новые красные клетки — после шага куба.
+            yield return EnemyLayer.FinishTurn(i);
+            if (core) SpecialTiles.AfterCoreStep(i); // шипы поднимаются / опускаются по ходу мира
+            if (token != _runToken) yield break;
+
             if (_collectedNow)
             {
                 _collectedNow = false;
                 yield return Hop(collectHopHeight, collectHopTime, 0f); // взял кристалл — подпрыгнул
+            }
+
+            if (core && planned.HeroDied)
+            {
+                // Коснулся врага — телепорт на старт: программа обрывается, уровень сбрасывается (как Rewind).
+                yield return Defeat();
+                if (token != _runToken) yield break;
+                _run = null;
+                if (List != null) List.OnHeroDefeated();
+                yield break;
+            }
+            if (core && planned.Won && EnemyLayer.Active && ActiveBlockManager.Instance != null)
+            {
+                // На уровнях с врагами победу объявляет ядро (кристаллы + босс повержен).
+                ActiveBlockManager.Instance.ForceVictory();
+                yield break;
             }
 
             if (pauseBetweenSteps > 0f) yield return new WaitForSeconds(pauseBetweenSteps);
@@ -337,12 +420,271 @@ public class CharacterCode : MonoBehaviour
         onDone?.Invoke();
     }
 
+    // ============================================================
+    //              ВРАГИ: УДАР, ЩИТ, УРОН, ПОРАЖЕНИЕ
+    // ============================================================
+
+    GameObject _shieldFx;
+
+    /// <summary>Действие без шага (карточки Атака / Супер-атака / Щит): удар — рывок туда, куда смотрит куб.</summary>
+    IEnumerator DoAction(CrystalAdventure.UnityLayer.CorePlannedStep planned)
+    {
+        var dir = new Vector3Int(planned.Facing.x, planned.Facing.y, 0);
+        switch (planned.Action)
+        {
+            case CrystalAdventure.Core.ActionType.Attack:
+            case CrystalAdventure.Core.ActionType.SuperAttack:
+            {
+                bool super = planned.Action == CrystalAdventure.Core.ActionType.SuperAttack;
+                Vector3 start = transform.localPosition;
+                Vector3 reach = StepVector(dir) * (super ? 0.45f : 0.32f);
+                PixelSfx.Play(Sfx.Jump, 0.7f, super ? 0.7f : 1.3f);
+                Squash(-0.15f);
+                for (float t = 0f; t < 1f; t += Time.deltaTime / (super ? 0.3f : 0.2f))
+                {
+                    float k = Mathf.Sin(t * Mathf.PI);
+                    var p = start + reach * k;
+                    transform.localPosition = new Vector3(Mathf.Round(p.x * 100f) / 100f, Mathf.Round(p.y * 100f) / 100f, p.z);
+                    yield return null;
+                }
+                transform.localPosition = start;
+                if (order != null)
+                    PixelFX.Burst(ToWorld(start + reach) + Vector3.up * 0.08f,
+                                  super ? new[] { new Color(1f, 0.85f, 0.3f, 1f), Color.white, new Color(0.6f, 0.9f, 1f, 1f) } : PixelFX.StarColors,
+                                  super ? 14 : 6, super ? 0.8f : 0.45f, 0.2f, 1.2f, order.sortingLayerID, order.sortingOrder + 3, PixelFX.Dot, 1f, 0.45f);
+                Squash(0.15f);
+                break;
+            }
+            case CrystalAdventure.Core.ActionType.Shield:
+            {
+                if (_shieldFx == null)
+                {
+                    var sr = new GameObject("ShieldFx").AddComponent<SpriteRenderer>();
+                    sr.transform.SetParent(transform, false);
+                    sr.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+                    sr.sprite = EnemyArt.Bubble;
+                    if (order != null) { sr.sortingLayerID = order.sortingLayerID; sr.sortingOrder = order.sortingOrder + 2; }
+                    _shieldFx = sr.gameObject;
+                }
+                if (order != null && _shieldFx.TryGetComponent<SpriteRenderer>(out var shieldSr)) shieldSr.sortingOrder = order.sortingOrder + 2;
+                _shieldFx.SetActive(true);
+                PixelSfx.Play(Sfx.Pop, 0.6f, 1.2f);
+                yield return new WaitForSeconds(0.2f);
+                break;
+            }
+            default:
+                yield return new WaitForSeconds(0.2f); // ожидание
+                break;
+        }
+    }
+
+    /// <summary>Куба ударили: вспышка и дрожь (из EnemyLayer).</summary>
+    public void PlayHurt() => StartCoroutine(HurtRoutine());
+
+    IEnumerator HurtRoutine()
+    {
+        // Только вспышка и сжатие: позицию не трогаем — следующий шаг может начаться, пока вспышка гаснет.
+        PixelSfx.Play(Sfx.Edge, 0.8f, 1.2f);
+        Squash(-0.2f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.3f)
+        {
+            if (order != null) order.color = Color.Lerp(new Color(1f, 0.35f, 0.35f, 1f), BaseColorOf(order), t);
+            yield return null;
+        }
+        if (order != null) order.color = BaseColorOf(order);
+    }
+
+    static readonly Color[] TeleportColors = { new Color(0.55f, 0.85f, 1f, 1f), new Color(0.85f, 0.95f, 1f, 1f), Color.white };
+
+    /// <summary>
+    /// Поражение (коснулся врага): куб вытягивается лучом и исчезает в искрах — телепорт.
+    /// Дальше MovingManager.OnHeroDefeated сбрасывает уровень, и куб появляется на старте (PlayTeleportIn).
+    /// </summary>
+    IEnumerator Defeat()
+    {
+        PixelSfx.Play(Sfx.Remove, 1f, 0.8f);
+        TeleportSparkles(0.6f);
+        Squash(0.45f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.35f)
+        {
+            SetAlpha(1f - t);
+            yield return null;
+        }
+        SetAlpha(0f);
+        yield return new WaitForSeconds(0.15f);
+    }
+
+    /// <summary>Появление на старте после поражения: искры и проявление (вызывает MovingManager).</summary>
+    public void PlayTeleportIn()
+    {
+        if (!_landed) return;
+        StartCoroutine(TeleportInRoutine());
+    }
+
+    IEnumerator TeleportInRoutine()
+    {
+        PixelSfx.Play(Sfx.Pop, 0.8f, 1.3f);
+        TeleportSparkles(0.4f);
+        Squash(0.35f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.3f)
+        {
+            if (IsRunning) { SetAlpha(1f); yield break; } // уже снова нажали Play
+            SetAlpha(t);
+            yield return null;
+        }
+        SetAlpha(1f);
+    }
+
+    void TeleportSparkles(float up)
+    {
+        if (order == null) return;
+        PixelFX.Burst(transform.position + Vector3.up * 0.1f, TeleportColors, 14, 0.5f, up, 0.3f,
+                      order.sortingLayerID, order.sortingOrder + 5, PixelFX.Dot, 1f, 0.6f);
+    }
+
+    /// <summary>Прозрачность всех спрайтов куба (тень — HeroJuice — гаснет сама по альфе тела).</summary>
+    void SetAlpha(float a)
+    {
+        if (_renderers == null) return;
+        for (int i = 0; i < _renderers.Length; i++)
+            if (_renderers[i] != null) { var c = _baseColors[i]; c.a *= a; _renderers[i].color = c; }
+    }
+
+    /// <summary>Вернуть вид после поражения / удара / щита (Rewind).</summary>
+    void RestoreLook()
+    {
+        if (_renderers != null)
+            for (int i = 0; i < _renderers.Length; i++) if (_renderers[i] != null) _renderers[i].color = _baseColors[i];
+        if (_shieldFx != null) _shieldFx.SetActive(false);
+        transform.rotation = Quaternion.identity;
+    }
+
+    Color BaseColorOf(SpriteRenderer r)
+    {
+        int i = System.Array.IndexOf(_renderers, r);
+        return i >= 0 ? _baseColors[i] : Color.white;
+    }
+
+
+    /// <summary>Шаг ядра → тот же Step, что дал бы WayTiles (прыжок — если стоим на грибе или встаём на гриб).</summary>
+    WayTiles.Step PlannedStep(CrystalAdventure.UnityLayer.CorePlannedStep planned, Dictionary<Vector3Int, OverlayTile> map)
+    {
+        var step = new WayTiles.Step();
+        if (!planned.Moved || map == null) return step;
+        // Сдуло ветром / перенёс телепорт: сам шаг — только до клетки, где это случилось (SpecialMove — потом).
+        var dest = planned.Special != CrystalAdventure.UnityLayer.SpecialMove.None ? planned.SpecialFrom : planned.To;
+        if (_tile != null && dest.x == _tile.gridLocation.x && dest.y == _tile.gridLocation.y) return step;
+        if (!map.TryGetValue(new Vector3Int(dest.x, dest.y, 0), out var target) || target == null) return step;
+        step.target = target;
+        step.fromMushroom = WayTiles.IsMushroom(_tile);
+        step.onMushroom = WayTiles.IsMushroom(target);
+        if (planned.Slid && map.TryGetValue(new Vector3Int(planned.Via.x, planned.Via.y, 0), out var via) && via != null && via != target)
+        {
+            step.via = via;
+            step.slid = true;
+        }
+        return step;
+    }
+
+    [Header("Лёд (Winter)")]
+    [Tooltip("Сколько секунд скользит одна клетка")] public float slideTimePerCell = 0.11f;
+
+    /// <summary>
+    /// Скольжение по льду: без прыжка, равномерно, с наклоном вперёд и ледяной крошкой из-под куба.
+    /// В конце — как обычный шаг: встал на клетку (кристалл, если он там, берётся).
+    /// </summary>
+    IEnumerator SlideToTile(OverlayTile target)
+    {
+        RaiseOrderFor(target);
+        Vector3 start = transform.localPosition;
+        Vector3 end = ToLocal(TopOf(target));
+        float cells = Mathf.Max(1f, Vector2.Distance(start, end) / 0.18f);
+        float time = Mathf.Max(0.12f, slideTimePerCell * cells);
+        float lean = end.x >= start.x ? -6f : 6f;
+        PixelSfx.Play(Sfx.Step, 0.45f, 1.5f);
+        float nextChip = 0f;
+        for (float t = 0f; t < 1f; t += Time.deltaTime / time)
+        {
+            transform.localPosition = Vector3.Lerp(start, end, t);
+            transform.rotation = Quaternion.Euler(0f, 0f, lean * Mathf.Sin(t * Mathf.PI));
+            if (t >= nextChip && order != null)
+            {
+                nextChip += 0.25f;
+                PixelFX.Burst(transform.position + Vector3.up * 0.02f, IceChips, 3, 0.2f, 0.05f, 0.9f,
+                              order.sortingLayerID, order.sortingOrder + 1, PixelFX.Dot, 0.7f, 0.3f);
+            }
+            yield return null;
+        }
+        transform.localPosition = end;
+        transform.rotation = Quaternion.identity;
+        Squash(-0.12f);
+        PositionCharacterOnLine(target, collect: true);
+    }
+
+    // ============================================================
+    //              КЛЕТКИ НЕБА: ВЕТЕР И ТЕЛЕПОРТ
+    // ============================================================
+
+    static readonly Color[] WindStreaks = { new Color(0.9f, 0.97f, 1f, 1f), new Color(0.7f, 0.88f, 1f, 1f), Color.white };
+
+    IEnumerator SpecialMove(CrystalAdventure.UnityLayer.CorePlannedStep planned, Dictionary<Vector3Int, OverlayTile> map)
+    {
+        if (map == null || !map.TryGetValue(new Vector3Int(planned.To.x, planned.To.y, 0), out var target) || target == null) yield break;
+        if (planned.Special == CrystalAdventure.UnityLayer.SpecialMove.Teleported) yield return TeleportTo(target);
+        else yield return WindPush(target);
+    }
+
+    /// <summary>Ветер сдувает куб на соседнюю клетку: ровно, без прыжка, с белыми полосками ветра.</summary>
+    IEnumerator WindPush(OverlayTile target)
+    {
+        RaiseOrderFor(target);
+        Vector3 start = transform.localPosition;
+        Vector3 end = ToLocal(TopOf(target));
+        PixelSfx.Play(Sfx.Whoosh, 0.6f, 1.4f);
+        float lean = end.x >= start.x ? -8f : 8f;
+        float nextStreak = 0f;
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.28f)
+        {
+            float k = Mathf.SmoothStep(0f, 1f, t);
+            transform.localPosition = Vector3.Lerp(start, end, k);
+            transform.rotation = Quaternion.Euler(0f, 0f, lean * Mathf.Sin(t * Mathf.PI));
+            if (t >= nextStreak && order != null)
+            {
+                nextStreak += 0.3f;
+                PixelFX.Burst(transform.position + Vector3.up * 0.1f, WindStreaks, 3, 0.35f, 0.02f, 0.2f,
+                              order.sortingLayerID, order.sortingOrder + 1, PixelFX.Dot, 0.7f, 0.3f);
+            }
+            yield return null;
+        }
+        transform.localPosition = end;
+        transform.rotation = Quaternion.identity;
+        PositionCharacterOnLine(target, collect: true);
+    }
+
+    /// <summary>Телепорт: куб растворяется в искрах на одной площадке и проявляется на парной.</summary>
+    IEnumerator TeleportTo(OverlayTile target)
+    {
+        PixelSfx.Play(Sfx.Ghost, 0.8f, 1.3f);
+        TeleportSparkles(0.4f);
+        Squash(0.35f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.18f) { SetAlpha(1f - t); yield return null; }
+        SetAlpha(0f);
+        PositionCharacterOnLine(target, collect: true);
+        TeleportSparkles(0.4f);
+        Squash(0.3f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.18f) { SetAlpha(t); yield return null; }
+        SetAlpha(1f);
+    }
+
+    static readonly Color[] IceChips = { new Color(0.85f, 0.97f, 1f, 1f), new Color(0.6f, 0.85f, 0.98f, 1f), Color.white };
+
     /// <summary>
     /// Шаг на соседнюю клетку маленьким прыжком: присел → вытянулся и перелетел → сплющился при
     /// приземлении, пыль из-под куба. Позиции — относительно острова (он покачивается).
     /// </summary>
     IEnumerator MoveToTile(OverlayTile target)
     {
+        RaiseOrderFor(target);
         Vector3 start = transform.localPosition;
         Vector3 end = ToLocal(TopOf(target));
         float dist = Vector2.Distance(start, end);
@@ -453,6 +795,7 @@ public class CharacterCode : MonoBehaviour
 
     private IEnumerator JumpToTile(OverlayTile targetTile)
     {
+        RaiseOrderFor(targetTile);
         PixelSfx.Play(Sfx.Jump, 0.8f);
         Vector3 startPos = transform.localPosition;
         Vector3 endPos = ToLocal(TopOf(targetTile));
@@ -475,6 +818,54 @@ public class CharacterCode : MonoBehaviour
         PositionCharacterOnLine(targetTile, collect: true);
     }
 
+    int[] _baseOrders;
+
+    /// <summary>
+    /// Порядок отрисовки куба на клетке. На уровнях с врагами — по глубине клетки (World/SortDepth),
+    /// чтобы куб и враги не перекрывали друг друга как попало; дочерние спрайты куба идут следом
+    /// с теми же сдвигами, что и в сцене. На обычных уровнях — как раньше (клетка + 2).
+    /// </summary>
+    void ApplyOrder(OverlayTile tile)
+    {
+        if (order == null || tile == null) return;
+        var tr = tile.GetComponent<SpriteRenderer>();
+        int legacy = (tr != null ? tr.sortingOrder : 0) + OrderAboveTile;
+        if (EnemyLayer.Active) SetBodyOrder(SortDepth.Character(tile), legacy);
+        else
+        {
+            order.sortingOrder = legacy;
+            // Вернуть дочерним спрайтам их порядок из сцены (если до этого был уровень с врагами).
+            for (int i = 0; i < _renderers.Length; i++)
+                if (_renderers[i] != null && _renderers[i] != order) _renderers[i].sortingOrder = _baseOrders[i];
+        }
+    }
+
+    void SetBodyOrder(int body, int legacy)
+    {
+        order.sortingOrder = body;
+        for (int i = 0; i < _renderers.Length; i++)
+            if (_renderers[i] != null && _renderers[i] != order) _renderers[i].sortingOrder = body + (_baseOrders[i] - legacy);
+    }
+
+    /// <summary>
+    /// Шаг к камере: новый (больший) порядок — сразу, иначе куб на полпути уйдёт под врага на клетке
+    /// перед ним; шаг от камеры — порядок обновится по прибытии (ApplyOrder).
+    /// </summary>
+    void RaiseOrderFor(OverlayTile target)
+    {
+        if (!EnemyLayer.Active || order == null || target == null) return;
+        int to = SortDepth.Character(target);
+        if (to <= order.sortingOrder) return;
+        var tr = target.GetComponent<SpriteRenderer>();
+        SetBodyOrder(to, (tr != null ? tr.sortingOrder : 0) + OrderAboveTile);
+    }
+
+    /// <summary>Пересчитать порядок на текущей клетке (EnemyLayer: уровень с врагами загружен или сброшен).</summary>
+    public void RefreshSortOrder()
+    {
+        if (_tile != null) ApplyOrder(_tile);
+    }
+
     public static Vector3 TopOf(OverlayTile tile)
     {
         if (tile.attachedObject != null && tile.attachedObject.TryGetComponent<MushroomObj>(out var mushroom))
@@ -494,8 +885,7 @@ public class CharacterCode : MonoBehaviour
 
         transform.position = TopOf(tile);
         AirHeight = 0f;
-        var tileRenderer = tile.GetComponent<SpriteRenderer>();
-        if (order != null && tileRenderer != null) order.sortingOrder = tileRenderer.sortingOrder + OrderAboveTile;
+        ApplyOrder(tile);
 
         activeTile = tile;
         _tile = tile;

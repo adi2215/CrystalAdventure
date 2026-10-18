@@ -121,7 +121,7 @@ static class Program
         T.Run("block count for stars", () =>
         {
             var p = ProgramText.Parse("def A { R R } call A call A");
-            T.Eq(5, p.CountBlocks(), "2 in A + def + 2 calls");
+            T.Eq(4, p.CountBlocks(), "2 in A + 2 calls (function panel is not a card)");
             var l = Strip(4); l.OptimalBlocks = 5; l.GoodBlocks = 7;
             T.Eq(3, Simulation.Run(l, p).Stars, "5 blocks -> 3 stars");
             T.Eq(2, Simulation.Run(l, "R R R R WAIT WAIT WAIT").Stars, "7 blocks -> 2 stars");
@@ -252,9 +252,9 @@ static class Program
             T.Eq(new Cell(4, 0), T.HeroPos(r), "slid to the last cell before the wall");
             T.True(r.Turns[0].Events.Count(e => e.Type == GameEventType.Slid) == 3, "3 slide steps");
         });
-        T.Run("mushroom bounces 2 cells", () =>
+        T.Run("mushroom bounces 2 cells (new rule, ClassicMushroom = false)", () =>
         {
-            var l = Strip(4); l.Set(1, 0, TileType.BounceMushroom);
+            var l = Strip(4); l.Rules.ClassicMushroom = false; l.Set(1, 0, TileType.BounceMushroom);
             var r = Simulation.Run(l, "R");
             T.Eq(new Cell(3, 0), T.HeroPos(r), "bounced");
         });
@@ -375,6 +375,12 @@ static class Program
             var b = Simulation.Run(l, "repeat 5 { R A }");
             T.Eq(Sig(a), Sig(b), "identical");
         });
+
+        LegacyTests.RunAll();
+        WinterTests.RunAll();
+        EnemyTests.RunAll();
+        SpikeTests.RunAll();
+        SkyTests.RunAll();
 
         return T.Summary();
     }

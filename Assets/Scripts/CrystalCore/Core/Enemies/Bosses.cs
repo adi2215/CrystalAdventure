@@ -91,6 +91,49 @@ namespace CrystalAdventure.Core
     }
 
     /// <summary>
+    /// Ледяной босс арены 8×8 («BossWinter» без маршрута). Стоит на месте, касание смертельно.
+    /// Каждый period-й ход бьёт туда, КУДА СМОТРИТ герой (клетка перед ним) — за ход до удара
+    /// клетки подсвечиваются. Удары чередуются:
+    ///   молния — клетка и крест вокруг: увернуться можно, свернув в сторону или шагнув назад;
+    ///   супер-лёд — квадрат 3×3: спасает только шаг назад; потом обычные клетки там — лёд.
+    /// Рисунок предсказуемый, его можно запрограммировать: «на каждом третьем шаге — поворот».
+    /// </summary>
+    public sealed class StormBossBrain : IEnemyBrain
+    {
+        public const string Lightning = "lightning";
+        public const string Ice = "ice";
+
+        readonly int _period;
+        int _shots;
+
+        public StormBossBrain(int period = 3) { _period = Math.Max(2, period); }
+
+        public Intent Plan(World w, Entity self)
+        {
+            // Plan вызывается в конце хода N — намерение на ход N + 1.
+            if ((w.Turn + 1) % _period != 0) return Intent.Wait;
+            var hero = w.Hero;
+            if (hero == null || !hero.Alive) return Intent.Wait;
+
+            var target = hero.Pos.Step(hero.Facing);
+            bool ice = _shots++ % 2 == 1;
+            var area = new List<Cell>();
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    if (!ice && dx != 0 && dy != 0) continue; // молния — крест
+                    var c = new Cell(target.X + dx, target.Y + dy);
+                    if (w.GetTile(c) != null && c != self.Pos) area.Add(c);
+                }
+            return new Intent
+            {
+                Kind = IntentKind.Attack, Dir = hero.Facing, Area = area.ToArray(), Damage = 1,
+                Target = target, Style = ice ? Ice : Lightning, FreezeArea = ice,
+            };
+        }
+    }
+
+    /// <summary>
     /// Боссы из дизайн-документа. Цифры — стартовые, их удобно крутить в одном месте.
     /// </summary>
     public static class BossLibrary
@@ -112,6 +155,10 @@ namespace CrystalAdventure.Core
         {
             switch (archetype)
             {
+                // Зима (арена 8×8): молния и супер-лёд туда, куда смотрит герой.
+                case "BossWinter":
+                    return new StormBossBrain(3);
+
                 // Лес: медленный, потом дроны, потом открывает ядро только на «окно».
                 case "WoodMechGuardian":
                     return new PatternBossBrain(
@@ -148,6 +195,46 @@ namespace CrystalAdventure.Core
 
                 default: return null;
             }
+        }
+    }
+}
+
+namespace CrystalAdventure.Core
+{
+    /// <summary>
+    /// Небесный босс («BossSky», летает — Entity.Flying): кит над полем ползёт по маршруту по кругу.
+    /// Клетку не занимает — под ним можно ходить, касание не смертельно; на поле видна его тень.
+    /// Каждый period-й ход зависает и сбрасывает бомбу в клетку под собой: удар крестом (клетка
+    /// и 4 соседние). За ход до удара клетки подсвечиваются — «тень = прицел».
+    /// </summary>
+    public sealed class SkyBrain : IEnemyBrain
+    {
+        public const string Bomb = "bomb";
+
+        readonly string _script;
+        readonly int _period;
+        int _index;
+
+        public SkyBrain(string script, int period = 3)
+        {
+            _script = (script ?? "").Replace(" ", "").ToUpperInvariant();
+            _period = Math.Max(2, period);
+        }
+
+        public Intent Plan(World w, Entity self)
+        {
+            if ((w.Turn + 1) % _period == 0)
+            {
+                var area = new List<Cell>();
+                foreach (var c in new[] { self.Pos, self.Pos.Step(Dir.North), self.Pos.Step(Dir.East), self.Pos.Step(Dir.South), self.Pos.Step(Dir.West) })
+                    if (w.GetTile(c) != null) area.Add(c);
+                return new Intent { Kind = IntentKind.Attack, Area = area.ToArray(), Damage = 1, Target = self.Pos, Style = Bomb, Dir = self.Facing };
+            }
+            if (_script.Length == 0) return Intent.Wait;
+            char ch = _script[_index % _script.Length];
+            _index++;
+            // Летит над полем: клетки под маршрутом могут быть и пустыми — проверки шага нет.
+            return ScriptedBrain.TryDir(ch, out var d) ? Intent.Move(d) : Intent.Wait;
         }
     }
 }

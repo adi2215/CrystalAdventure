@@ -14,6 +14,7 @@ namespace CrystalAdventure.Core
         CrystalNotCollected,// остались кристаллы
         EnemyAlive,         // остались враги
         HpLow,              // HP героя ≤ 1
+        TileColor,          // герой стоит на клетке цвета Value (цветные клетки старой игры)
     }
 
     /// <summary>Условие для If / While. Проверяется по ТЕКУЩЕМУ состоянию мира.</summary>
@@ -21,11 +22,14 @@ namespace CrystalAdventure.Core
     {
         public ConditionType Type;
         public bool Negate; // «Not ...»
+        public int Value;   // параметр условия: для TileColor — номер цвета (1 Red, 2 Blue, 3 Yellow)
 
         public Condition(ConditionType type, bool negate = false) { Type = type; Negate = negate; }
 
         public static Condition Of(ConditionType t) => new Condition(t);
         public static Condition Not(ConditionType t) => new Condition(t, true);
+        /// <summary>«Герой стоит на клетке цвета color» — условие покрашенной карточки.</summary>
+        public static Condition OnColor(int color) => new Condition(ConditionType.TileColor) { Value = color };
 
         public bool Evaluate(World w)
         {
@@ -63,11 +67,14 @@ namespace CrystalAdventure.Core
                     return w.Hostiles.Any();
                 case ConditionType.HpLow:
                     return hero.Hp <= 1;
+                case ConditionType.TileColor:
+                    var here = w.GetTile(hero.Pos);
+                    return here != null && Value != 0 && here.Color == Value;
                 default:
                     return false;
             }
         }
 
-        public override string ToString() => (Negate ? "Not " : "") + Type;
+        public override string ToString() => (Negate ? "Not " : "") + Type + (Type == ConditionType.TileColor ? " " + Value : "");
     }
 }

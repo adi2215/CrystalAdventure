@@ -18,6 +18,9 @@ namespace CrystalAdventure.Core
     /// </summary>
     public static class TurnResolver
     {
+        /// <summary>Info у Bumped, когда впереди пустота (нет клетки или она исчезла): «чуть не упал».</summary>
+        public const string EdgeReason = "edge";
+
         public static Intent HeroIntent(Entity hero, ActionType a)
         {
             switch (a)
@@ -45,6 +48,7 @@ namespace CrystalAdventure.Core
         {
             var ctx = new TurnContext(w);
             var hero = w.Hero;
+            ctx.HeroStart = hero.Pos;
             w.Turn++;
 
             // Все намерения фиксируются ДО каких-либо изменений мира.
@@ -217,7 +221,13 @@ namespace CrystalAdventure.Core
 
         // ------------------------------------------------------------------ 2. Move (одновременно)
 
-        sealed class Mover { public Entity E; public Cell From; public Cell To; public Dir Dir; public bool Failed; public string Why; }
+        sealed class Mover { public Entity E; public Cell From; public Cell To; public Dir Dir; public bool Failed; public string Why; public bool Jump; }
+
+        static bool IsMushroom(World w, Cell c)
+        {
+            var t = w.GetTile(c);
+            return t != null && !t.Gone && t.Type == TileType.BounceMushroom;
+        }
 
         static void MovePhase(TurnContext ctx, List<KeyValuePair<Entity, Intent>> intents)
         {
@@ -230,8 +240,15 @@ namespace CrystalAdventure.Core
                 var e = kv.Key;
                 if (!e.Alive || kv.Value.Kind != IntentKind.Move) continue;
                 e.Facing = kv.Value.Dir; // смотрит туда, куда пытался идти — даже если упёрся
-                var m = new Mover { E = e, From = e.Pos, Dir = kv.Value.Dir, To = e.Pos.Step(kv.Value.Dir) };
-                if (!w.CanStep(m.From, m.To)) { m.Failed = true; m.Why = "blocked"; }
+                // Классический гриб: стоишь на грибе — шаг на 2 клетки (промежуточная клетка не нужна).
+                bool jump = w.Rules.ClassicMushroom && IsMushroom(w, e.Pos);
+                var m = new Mover { E = e, From = e.Pos, Dir = kv.Value.Dir, To = e.Pos.Step(kv.Value.Dir, jump ? 2 : 1), Jump = jump };
+                if (!e.Flying && !w.CanStep(m.From, m.To)) // летающий — над чем угодно
+                {
+                    m.Failed = true;
+                    var target = w.GetTile(m.To);
+                    m.Why = target == null || target.Gone ? EdgeReason : "blocked";
+                }
                 movers.Add(m);
             }
 
@@ -240,7 +257,7 @@ namespace CrystalAdventure.Core
             while (changed)
             {
                 changed = false;
-                var live = movers.Where(m => !m.Failed).ToList();
+                var live = movers.Where(m => !m.Failed && !m.E.Flying).ToList(); // летающие никому не мешают
 
                 // Двое в одну клетку — оба стоят.
                 foreach (var g in live.GroupBy(m => m.To).Where(g => g.Count() > 1))
@@ -253,7 +270,7 @@ namespace CrystalAdventure.Core
                         { a.Failed = b.Failed = true; a.Why = b.Why = "swap"; changed = true; }
 
                 // В клетке стоит тот, кто не уходит.
-                foreach (var m in movers.Where(x => !x.Failed))
+                foreach (var m in movers.Where(x => !x.Failed && !x.E.Flying))
                 {
                     var occ = w.SolidAt(m.To);
                     if (occ == null || occ == m.E) continue;
@@ -262,21 +279,49 @@ namespace CrystalAdventure.Core
                 }
             }
 
+            // Касание смертельного врага (синий куб, боссы-кубы) — герой погибает.
+            // Считаем по намерениям: обмен местами и одна клетка на двоих — касание всегда; шаг в клетку врага —
+            // касание, если враг остаётся на месте; враг шагнул в клетку героя — если герой остаётся.
+            // Идти следом за уходящим врагом (или он — за героем) можно.
+            var hero = w.Hero;
+            if (hero != null && hero.Alive)
+            {
+                var hm = movers.FirstOrDefault(m => m.E == hero);
+                foreach (var e in w.Entities.Where(x => x.Alive && x.Deadly && x.IsHostile))
+                {
+                    var em = movers.FirstOrDefault(m => m.E == e);
+                    bool heroGoes = hm != null && !hm.Failed;
+                    bool enemyGoes = em != null && !em.Failed;
+                    bool touch =
+                        (hm != null && em != null && hm.To == e.Pos && em.To == hero.Pos) ||   // обмен местами
+                        (hm != null && em != null && hm.To == em.To) ||                        // одна клетка
+                        (hm != null && hm.To == e.Pos && !enemyGoes) ||                        // шагнул в стоящего врага
+                        (em != null && em.To == hero.Pos && !heroGoes);                        // враг шагнул в стоящего героя
+                    if (!touch) continue;
+                    ctx.Emit(new GameEvent(GameEventType.Damaged, EventPhase.Move) { EntityId = hero.Id, TargetId = e.Id, Cell = hero.Pos, Amount = hero.Hp, Info = "touched" });
+                    ctx.Kill(hero, EventPhase.Move, "touched");
+                    break;
+                }
+            }
+
             // Применяем все успешные шаги ОДНОВРЕМЕННО.
             foreach (var m in movers)
             {
+                if (!m.E.Alive) continue; // герой погиб от касания — дальше не идёт
                 if (m.Failed)
                 {
                     ctx.Emit(new GameEvent(GameEventType.Bumped, EventPhase.Move) { EntityId = m.E.Id, Cell = m.From, To = m.To, Dir = m.Dir, Info = m.Why });
                     continue;
                 }
                 m.E.Pos = m.To;
-                ctx.Emit(new GameEvent(GameEventType.Moved, EventPhase.Move) { EntityId = m.E.Id, Cell = m.From, To = m.To, Dir = m.Dir });
+                // Info = "jump": прыжок с гриба или на гриб — View рисует дугу, как старый CharacterCode.JumpToTile.
+                bool jumpAnim = m.Jump || (w.Rules.ClassicMushroom && IsMushroom(w, m.To));
+                ctx.Emit(new GameEvent(GameEventType.Moved, EventPhase.Move) { EntityId = m.E.Id, Cell = m.From, To = m.To, Dir = m.Dir, Info = jumpAnim ? "jump" : null });
             }
 
             // Эффекты клеток: сначала «ушёл», потом «пришёл».
             ctx.Phase = EventPhase.Effects;
-            var ok = movers.Where(m => !m.Failed).OrderBy(m => m.E.Id).ToList();
+            var ok = movers.Where(m => !m.Failed && !m.E.Flying).OrderBy(m => m.E.Id).ToList(); // летающий клеток не касается
             foreach (var m in ok)
             {
                 var t = w.GetTile(m.From);
@@ -330,6 +375,17 @@ namespace CrystalAdventure.Core
                 }
             }
 
+            // Шипы змеи, которые ещё торчат: наступил — смерть.
+            if (hero.Alive)
+            {
+                var under = w.GetTile(hero.Pos);
+                if (under != null && under.Hazard > 0)
+                {
+                    ctx.Emit(new GameEvent(GameEventType.Damaged, ctx.Phase) { EntityId = hero.Id, Cell = hero.Pos, Amount = hero.Hp, Info = SnakeBrain.Spikes });
+                    ctx.Kill(hero, ctx.Phase, SnakeBrain.Spikes);
+                }
+            }
+
             // Атаки врагов — по клеткам, которые они заранее показали.
             foreach (var kv in intents.Skip(1))
             {
@@ -339,8 +395,52 @@ namespace CrystalAdventure.Core
                 var ev = ctx.Emit(GameEventType.Attacked, e);
                 ev.Area = area;
                 ev.Dir = it.Dir;
+                if (it.Style != null) { ev.Style = it.Style; ev.To = it.Target; }
                 if (area.Contains(hero.Pos))
                     ctx.Damage(hero, it.Damage <= 0 ? 1 : it.Damage, ctx.Phase, hero.Pos, e);
+                if (it.FreezeArea) FreezeCells(ctx, e, area);
+                if (it.Style == SnakeBrain.Spikes) RaiseSpikes(ctx, e, area);
+                if (it.Style == SnakeBrain.Quake) Collapse(ctx, e, area);
+            }
+        }
+
+        /// <summary>Шипы змеи: торчат в ход удара и ещё SnakeBrain.SpikeLinger ходов.</summary>
+        static void RaiseSpikes(TurnContext ctx, Entity by, Cell[] area)
+        {
+            foreach (var c in area)
+            {
+                var t = ctx.World.GetTile(c);
+                if (t == null || t.Gone) continue;
+                t.Hazard = SnakeBrain.SpikeLinger + 1; // −1 в конце этого хода (TilesPhase)
+                ctx.Emit(new GameEvent(GameEventType.TileChanged, ctx.Phase) { EntityId = by.Id, Cell = c, Info = "spikes_up" });
+            }
+        }
+
+        /// <summary>Удар хвостом: клетки проваливаются насовсем (дальше по ним не пройти — край).</summary>
+        static void Collapse(TurnContext ctx, Entity by, Cell[] area)
+        {
+            foreach (var c in area)
+            {
+                var t = ctx.World.GetTile(c);
+                if (t == null || t.Gone || ctx.World.SolidAt(c) != null && ctx.World.SolidAt(c) != ctx.World.Hero) continue;
+                t.Gone = true;
+                ctx.Emit(new GameEvent(GameEventType.TileChanged, ctx.Phase) { EntityId = by.Id, Cell = c, Info = "collapsed" });
+            }
+        }
+
+        /// <summary>
+        /// Супер-лёд: обычные клетки области становятся льдом (дальше по ним скользят).
+        /// Клетки с кристаллом не замерзают — иначе по ним проскальзывали бы мимо кристалла.
+        /// </summary>
+        static void FreezeCells(TurnContext ctx, Entity by, Cell[] area)
+        {
+            var w = ctx.World;
+            foreach (var c in area)
+            {
+                var t = w.GetTile(c);
+                if (t == null || t.Gone || t.Type != TileType.Ground || w.CrystalAt(c) != null) continue;
+                t.Type = TileType.Ice;
+                ctx.Emit(new GameEvent(GameEventType.Frozen, ctx.Phase) { EntityId = by.Id, Cell = c });
             }
         }
 
@@ -353,6 +453,11 @@ namespace CrystalAdventure.Core
             // Фиксированный порядок обхода — результат всегда одинаковый.
             foreach (var kv in w.Tiles.OrderBy(k => k.Key.Y).ThenBy(k => k.Key.X).ToList())
                 TileBehaviors.Get(kv.Value.Type).OnTurnEnd(ctx, kv.Key, kv.Value);
+
+            // Шипы змеи опускаются.
+            foreach (var kv in w.Tiles.OrderBy(k => k.Key.Y).ThenBy(k => k.Key.X))
+                if (kv.Value.Hazard > 0 && --kv.Value.Hazard == 0)
+                    ctx.Emit(new GameEvent(GameEventType.TileChanged, ctx.Phase) { Cell = kv.Key, Info = "spikes_down" });
 
             if (w.RecomputePlates())
                 ctx.Emit(new GameEvent(GameEventType.ChannelChanged, ctx.Phase) { Info = "plates" });
@@ -379,7 +484,9 @@ namespace CrystalAdventure.Core
                 foreach (var m in w.Hostiles.ToList()) ctx.Kill(m, ctx.Phase, "boss_down");
             }
 
-            if (w.Rules.AutoPickupCrystals && w.Hero.Alive)
+            // PickupOnArrival: как в старой игре — кристалл берётся, только если герой в этом ходу пришёл на клетку.
+            bool arrived = !w.Rules.PickupOnArrival || w.Hero.Pos != ctx.HeroStart;
+            if (w.Rules.AutoPickupCrystals && w.Hero.Alive && arrived)
             {
                 var c = w.CrystalAt(w.Hero.Pos);
                 if (c != null)
@@ -398,11 +505,15 @@ namespace CrystalAdventure.Core
             var w = ctx.World;
             foreach (var e in w.Entities.Where(x => x.Alive && x.IsHostile).OrderBy(x => x.Id))
             {
+                bool wasArmored = e.Armored;
                 e.Planned = e.Brain != null ? e.Brain.Plan(w, e) : Intent.Wait;
+                // Броню босс надевает в момент выбора приёма (новая фаза) — сообщаем, иначе View её не увидит.
+                if (!wasArmored && e.Armored) ctx.Emit(GameEventType.ArmorGained, e);
                 var ev = ctx.Emit(GameEventType.IntentPlanned, e);
                 ev.Dir = e.Planned.Dir;
                 ev.Info = e.Planned.Kind.ToString();
                 ev.Area = DangerCells(e, e.Planned);
+                if (e.Planned.Style != null) { ev.Style = e.Planned.Style; ev.To = e.Planned.Target; }
             }
         }
 

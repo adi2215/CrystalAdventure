@@ -123,8 +123,54 @@ namespace CrystalAdventure.Core
         }
     }
 
+    /// <summary>
+    /// Враг с заданным маршрутом (синий куб): каждый ход берёт следующую букву по кругу.
+    /// F / B / L / R — шаг вверх / вниз / влево / вправо по сетке (как карточки героя), W или «.» — стоять.
+    /// Если клетки нет — стоит этот ход. В героя НЕ упирается: касание смертельно (Entity.Deadly),
+    /// это решает TurnResolver.MovePhase.
+    /// </summary>
+    public sealed class ScriptedBrain : IEnemyBrain
+    {
+        readonly string _script;
+        int _index;
+
+        public ScriptedBrain(string script) { _script = (script ?? "").Replace(" ", "").ToUpperInvariant(); }
+
+        public Intent Plan(World w, Entity self)
+        {
+            if (_script.Length == 0) return Intent.Wait;
+            char ch = _script[_index % _script.Length];
+            _index++;
+            if (!TryDir(ch, out var d)) return Intent.Wait;
+            return w.CanStep(self.Pos, self.Pos.Step(d)) ? Intent.Move(d) : Intent.Wait;
+        }
+
+        /// <summary>Буква маршрута → направление (F/B/L/R как карточки героя); W и прочее — стоять.</summary>
+        public static bool TryDir(char ch, out Dir d)
+        {
+            switch (ch)
+            {
+                case 'F': d = Dir.North; return true;
+                case 'B': d = Dir.South; return true;
+                case 'L': d = Dir.West; return true;
+                case 'R': d = Dir.East; return true;
+                default: d = Dir.North; return false;
+            }
+        }
+    }
+
     public static class EnemyBrains
     {
+        /// <summary>Архетипы, касание которых смертельно (синий куб и боссы-кубы).</summary>
+        public static bool IsDeadlyOnTouch(string archetype) =>
+            archetype == "Walker" || archetype == "BossForest" || archetype == "BossWinter" || archetype == SnakeBodyArchetype;
+
+        /// <summary>Архетип сегмента тела змеи (создаёт LevelSetup.Build по EntitySpec.Body).</summary>
+        public const string SnakeBodyArchetype = "SnakeBody";
+
+        /// <summary>Небесный босс — летающий кит (SkyBrain): бомбы под свою тень каждый 3-й ход.</summary>
+        public const string SkyBossArchetype = "BossSky";
+
         /// <summary>Мозг по имени архетипа (имя = префаб во View).</summary>
         public static IEnemyBrain Create(string archetype)
         {

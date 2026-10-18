@@ -1704,6 +1704,12 @@ MonoBehaviour:
   emptyStarColor: {r: 0.35, g: 0.32, b: 0.42, a: 0.6}
   plusColor: {r: 0.45, g: 0.95, b: 0.35, a: 1}
   minusColor: {r: 1, g: 0.4, b: 0.4, a: 1}
+  starScale: 1.1
+  starSockets: 1
+  starRays: 1
+  resultWidth: 500
+  resultRowHeight: 42
+  resultGap: 12
   panelRaise: 90
   resultsRoot: {fileID: 0}
   nextButton: {fileID: 0}
@@ -2097,11 +2103,17 @@ MonoBehaviour:
   collectHopHeight: 0.2
   collectHopTime: 0.35
   victoryHops: 2
+  stepTime: 0.2
+  stepHop: 0.045
+  stepAnticipation: 0.04
+  stepDust: 1
   pauseBetweenSteps: 0.1
   bumpTime: 0.2
   jumpTime: 0.5
   jumpHeight: 0.3
   waitOnMushroom: 0.3
+  skipPause: 0.22
+  slideTimePerCell: 0.11
   flyAwayTime: 1
   flyAwayHeight: 3
 --- !u!212 &269812194
@@ -6935,6 +6947,8 @@ MonoBehaviour:
   Play: {fileID: 5241114538126574909}
   inputBlocker: {fileID: 7852660034300400526}
   character: {fileID: 269812193}
+  useCrystalCore: 1
+  logCoreRuns: 1
 --- !u!1 &1090802526
 GameObject:
   m_ObjectHideFlags: 0
@@ -9799,6 +9813,24 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 4cdf30d9b7394a88b4d89cec947bdf6b, type: 2}
   - {fileID: 11400000, guid: dcd4e5b481c24f93b8da1b832927646e, type: 2}
   - {fileID: 11400000, guid: ea4b4cfabaab4e50b5e26a6631ed9ba4, type: 2}
+  - {fileID: 11400000, guid: ebdab13b6d3763c4aab8eb1a5f9d14d1, type: 2}
+  - {fileID: 11400000, guid: 55a66a215f2eaec458e8f6c2768bf54b, type: 2}
+  - {fileID: 11400000, guid: a3d4700e085cdf542bbc6269e42ba914, type: 2}
+  - {fileID: 11400000, guid: ec7fdea6d77b3654089ff74460feedd0, type: 2}
+  - {fileID: 11400000, guid: 437e37e6f7f850944a196570eb56d7ba, type: 2}
+  - {fileID: 11400000, guid: d59dd8d2abf1a5e45bb5cdf6ba600bc8, type: 2}
+  - {fileID: 11400000, guid: f132b813a0cc729488b2d97ea530462a, type: 2}
+  - {fileID: 11400000, guid: c5fd20e1e6372ed469523e3be93ce332, type: 2}
+  - {fileID: 11400000, guid: 1a830b93ebaf93c408ae0e733ac57aba, type: 2}
+  - {fileID: 11400000, guid: 164a7a8d3c430b644ba80af1ab2e059f, type: 2}
+  - {fileID: 11400000, guid: 66d63e5f586ea3544810b9a5c9852142, type: 2}
+  - {fileID: 11400000, guid: 709abea63b3914c489d1f678727f9e99, type: 2}
+  - {fileID: 11400000, guid: 3c79c8c42b02a8d4eba8aeb5c9e39667, type: 2}
+  - {fileID: 11400000, guid: 20de8263690fbec4c81bbf9b61a57540, type: 2}
+  - {fileID: 11400000, guid: 5533c4feeb522a1499e077f6cfde7c21, type: 2}
+  - {fileID: 11400000, guid: cdda6a69477dd3b4bac68fada7f75da3, type: 2}
+  - {fileID: 11400000, guid: 913f249397f03114b85e2230730e399f, type: 2}
+  - {fileID: 11400000, guid: 201b8a06b6205764fa7ce48dc09285d1, type: 2}
   map: {fileID: 2146171918}
   dialogs: {fileID: 4795019950832678887}
   panels: {fileID: 8301297172082549223}
@@ -14213,6 +14245,7 @@ MonoBehaviour:
   crystalBlock: {fileID: 7395808712845217643, guid: 431905e01eff9f746b422175ed37f007, type: 3}
   finishDelay: 1
   tilemap: {fileID: 1436639511}
+  victoryByCore: 0
 --- !u!1 &275761757222997809
 GameObject:
   m_ObjectHideFlags: 0
@@ -16342,7 +16375,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!114 &4795019950832678887
 MonoBehaviour:
   m_ObjectHideFlags: 0
