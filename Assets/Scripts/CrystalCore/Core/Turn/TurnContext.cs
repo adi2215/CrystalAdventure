@@ -12,6 +12,8 @@ namespace CrystalAdventure.Core
         public readonly World World;
         public readonly List<GameEvent> Events = new List<GameEvent>();
         public readonly HashSet<int> TeleportedThisTurn = new HashSet<int>();
+        /// <summary>Кого ветер уже сдвинул в этом ходу — сдвигает не больше раза за ход, в любую сторону одинаково.</summary>
+        public readonly HashSet<int> PushedThisTurn = new HashSet<int>();
         public EventPhase Phase;
         /// <summary>Где герой стоял в начале хода (для LevelRules.PickupOnArrival).</summary>
         public Cell HeroStart;

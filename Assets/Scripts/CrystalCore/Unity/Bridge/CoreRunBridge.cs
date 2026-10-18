@@ -4,9 +4,16 @@ using UnityEngine;
 
 namespace CrystalAdventure.UnityLayer
 {
+    /// <summary>Что случилось с героем после самого шага (клетки неба).</summary>
+    public enum SpecialMove { None, Pushed, Teleported }
+
     /// <summary>Один шаг программы, заранее посчитанный ядром, — его проигрывает старый куб (CharacterCode).</summary>
     public struct CorePlannedStep
     {
+        /// <summary>После шага героя сдуло ветром / перенёс телепорт: сначала он идёт в SpecialFrom, потом — в To.</summary>
+        public SpecialMove Special;
+        public Vector2Int SpecialFrom;
+
         public bool Skipped;     // покрашенная карточка не на своём цвете — пропуск
         public bool Moved;       // герой перешёл на другую клетку (иначе — упёрся или стоял на месте)
         public Vector2Int To;    // где герой оказался после шага (колонка x, y как ключ MapManager.map)
@@ -79,6 +86,8 @@ namespace CrystalAdventure.UnityLayer
                 }
 
                 var before = pos;
+                var special = SpecialMove.None;
+                var specialFrom = pos;
                 Vector2Int? via = null;
                 bool slid = false, blocked = false, died = false;
                 foreach (var e in turn.Events)
@@ -96,8 +105,15 @@ namespace CrystalAdventure.UnityLayer
                             pos = new Vector2Int(e.To.X, e.To.Y);
                             break;
                         case GameEventType.Pushed:
-                        case GameEventType.Bounced:
                         case GameEventType.Teleported:
+                            if (special == SpecialMove.None)
+                            {
+                                special = e.Type == GameEventType.Pushed ? SpecialMove.Pushed : SpecialMove.Teleported;
+                                specialFrom = pos;
+                            }
+                            pos = new Vector2Int(e.To.X, e.To.Y);
+                            break;
+                        case GameEventType.Bounced:
                             pos = new Vector2Int(e.To.X, e.To.Y);
                             break;
                         case GameEventType.Bumped:
@@ -121,8 +137,9 @@ namespace CrystalAdventure.UnityLayer
                 plan.Add(new CorePlannedStep
                 {
                     Moved = pos != before, To = pos, Slid = slid && via != null, Via = via ?? pos,
-                    Action = turn.Action, Blocked = blocked && pos == before, Facing = facing,
+                    Action = turn.Action, Blocked = blocked && (special != SpecialMove.None ? specialFrom : pos) == before, Facing = facing,
                     HeroHp = hp, HeroDied = died, Won = last && result.Won,
+                    Special = special, SpecialFrom = specialFrom,
                 });
             }
             return plan;

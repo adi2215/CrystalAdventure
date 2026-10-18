@@ -186,6 +186,10 @@ namespace CrystalAdventure.Core
             if (!ctx.World.WindActive) return;
             var e = ctx.World.SolidAt(c);
             if (e == null || !e.Alive) return;
+            // Исправлено: клетки обходятся по порядку (Y, потом X), и ветер «вправо» проносил героя через
+            // весь ряд за один ход (каждая следующая клетка толкала снова), а «влево» — на одну клетку.
+            // Теперь за ход — не больше одного сдвига.
+            if (!ctx.PushedThisTurn.Add(e.Id)) return;
             var d = DirOf(ctx.World, t);
             var target = c.Step(d);
             if (ctx.World.CanEnter(e, c, target))

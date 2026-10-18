@@ -380,6 +380,7 @@ static class Program
         WinterTests.RunAll();
         EnemyTests.RunAll();
         SpikeTests.RunAll();
+        SkyTests.RunAll();
 
         return T.Summary();
     }

@@ -108,6 +108,34 @@ namespace CrystalAdventure.EditorTools
             },
         };
 
+        /// <summary>
+        /// Клетка из рисунка уровня: '#' / 'S' обычная, 'C' кристалл, 'I' лёд, 'P' плита, 'M' гриб, '0'–'2' шипы с фазой,
+        /// 'O' облако, '>' '<' '^' 'v' ветер (вправо-вверх / влево-вниз / влево-вверх / вправо-вниз — как карточки
+        /// Right / Left / Forward / Bottom), 'T' / 't' телепорты пары 0 / 1.
+        /// </summary>
+        public static TileInfo TileFor(char ch)
+        {
+            var info = new TileInfo();
+            switch (ch)
+            {
+                case 'C': info.superTileType = SuperBlocks.Crystal; break;
+                case 'I': info.superTileType = SuperBlocks.Ice; break;
+                case 'P': info.superTileType = SuperBlocks.Crumbling; break;
+                case 'M': info.superTileType = SuperBlocks.Mushroom; break;
+                case 'O': info.superTileType = SuperBlocks.Cloud; break;
+                case '>': info.superTileType = SuperBlocks.Wind; info.windDir = ItemType.Right; break;
+                case '<': info.superTileType = SuperBlocks.Wind; info.windDir = ItemType.Left; break;
+                case '^': info.superTileType = SuperBlocks.Wind; info.windDir = ItemType.Forward; break;
+                case 'v': info.superTileType = SuperBlocks.Wind; info.windDir = ItemType.Bottom; break;
+                case 'T': info.superTileType = SuperBlocks.Teleport; info.channel = 0; break;
+                case 't': info.superTileType = SuperBlocks.Teleport; info.channel = 1; break;
+                default:
+                    if (ch >= '0' && ch <= '2') { info.superTileType = SuperBlocks.Spikes; info.phase = ch - '0'; }
+                    break;
+            }
+            return info;
+        }
+
         /// <summary>Клетки, старт, враги, карточки на панели и решение.</summary>
         public static void Build(LevelSt lvl, Spec spec, System.Func<int, TileBase> art, System.Func<ItemType, Item> item)
         {
@@ -120,11 +148,10 @@ namespace CrystalAdventure.EditorTools
                     char ch = spec.Rows[r][x];
                     if (ch == '.') continue;
                     int y = top - r;
-                    var super = ch == 'C' ? SuperBlocks.Crystal : ch == 'I' ? SuperBlocks.Ice : ch == 'P' ? SuperBlocks.Crumbling
-                              : ch >= '0' && ch <= '2' ? SuperBlocks.Spikes : SuperBlocks.None;
-                    int phase = super == SuperBlocks.Spikes ? ch - '0' : 0;
-                    int grass = super == SuperBlocks.Crystal ? DraftLevels.SpecialGrass : ((x * 7 + y * 3) % 3 + 3) % 3;
-                    tiles.Add(new TileInfo { position = new Vector3Int(x, y, 0), tile = art(grass), superTileType = super, phase = phase });
+                    var info = TileFor(ch);
+                    info.position = new Vector3Int(x, y, 0);
+                    info.tile = art(info.superTileType == SuperBlocks.Crystal || info.superTileType == SuperBlocks.Mushroom ? DraftLevels.SpecialGrass : ((x * 7 + y * 3) % 3 + 3) % 3);
+                    tiles.Add(info);
                     if (ch == 'S') start = new Vector2Int(x, y);
                 }
             lvl.tiles = tiles;

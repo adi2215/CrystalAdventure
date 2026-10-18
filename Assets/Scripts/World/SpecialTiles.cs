@@ -42,6 +42,18 @@ public static class SpecialTiles
     static readonly Dictionary<Vector2Int, int> SpikePhase = new Dictionary<Vector2Int, int>();
     static readonly Dictionary<Vector2Int, SpriteRenderer> SpikeViews = new Dictionary<Vector2Int, SpriteRenderer>();
     static readonly Dictionary<Vector2Int, int> SpikeShown = new Dictionary<Vector2Int, int>(); // 0 лунки, 1 выглядывают, 2 торчат
+    static readonly Dictionary<Vector2Int, ItemType> WindDir = new Dictionary<Vector2Int, ItemType>();
+    static readonly Dictionary<Vector2Int, int> PortalChannel = new Dictionary<Vector2Int, int>();
+    static readonly Dictionary<Vector2Int, CloudState> Clouds = new Dictionary<Vector2Int, CloudState>();
+
+    /// <summary>Облако (Sky): как выглядел блок — чтобы растворить его и вернуть один в один.</summary>
+    sealed class CloudState
+    {
+        public SpriteRenderer[] Renderers;
+        public Color[] Colors;
+        public Coroutine Routine;
+        public bool Gone;
+    }
     static bool _winter;
 
     static Sprite _ice, _cracks, _snow;
@@ -78,6 +90,9 @@ public static class SpecialTiles
         SpikePhase.Clear();
         SpikeViews.Clear();
         SpikeShown.Clear();
+        WindDir.Clear();
+        PortalChannel.Clear();
+        Clouds.Clear();
         _winter = levelIndex / LevelsPerChapter == WinterChapter;
         if (level == null || level.tiles == null) return;
 
@@ -91,9 +106,13 @@ public static class SpecialTiles
         }
         foreach (var kv in top)
         {
-            if (kv.Value.superTileType == SuperBlocks.Ice || kv.Value.superTileType == SuperBlocks.Crumbling || kv.Value.superTileType == SuperBlocks.Spikes)
-                Current[kv.Key] = kv.Value.superTileType;
-            if (kv.Value.superTileType == SuperBlocks.Spikes) SpikePhase[kv.Key] = kv.Value.phase;
+            var t = kv.Value.superTileType;
+            if (t == SuperBlocks.Ice || t == SuperBlocks.Crumbling || t == SuperBlocks.Spikes ||
+                t == SuperBlocks.Cloud || t == SuperBlocks.Wind || t == SuperBlocks.Teleport)
+                Current[kv.Key] = t;
+            if (t == SuperBlocks.Spikes) SpikePhase[kv.Key] = kv.Value.phase;
+            if (t == SuperBlocks.Wind) WindDir[kv.Key] = kv.Value.windDir;
+            if (t == SuperBlocks.Teleport) PortalChannel[kv.Key] = kv.Value.channel;
         }
     }
 
@@ -114,6 +133,9 @@ public static class SpecialTiles
             sr.color = new Color(sr.color.r * 0.82f, sr.color.g * 0.74f, sr.color.b * 0.66f, sr.color.a);
         }
         else if (type == SuperBlocks.Spikes) AddSpikes(key, block, sr);
+        else if (type == SuperBlocks.Cloud) overlay = CloudCapSprite;
+        else if (type == SuperBlocks.Wind) AddAnimatedCap(block, sr, "Wind", WindFrames(WindDir.TryGetValue(key, out var wd) ? wd : ItemType.Right), 3f);
+        else if (type == SuperBlocks.Teleport) AddAnimatedCap(block, sr, "Portal", PortalFrames(PortalChannel.TryGetValue(key, out var ch) ? ch : 0), 6f);
         else if (_winter && ColorTiles.At(cell.x, cell.y) == TileColor.None) overlay = SnowSprite;
 
         // Позицию НЕ запоминаем здесь: блоки ещё влетают на место (вступление MapManager).
@@ -245,6 +267,7 @@ public static class SpecialTiles
         foreach (var snow in HiddenSnow) if (snow != null) snow.SetActive(true);
         HiddenSnow.Clear();
         ShowSpikes(0, false);
+        foreach (var key in Clouds.Keys.ToList()) SetCloud(key, true, false);
     }
 
     // ───────────── шипы (Forest) ─────────────
@@ -291,10 +314,16 @@ public static class SpecialTiles
     /// <summary>Шаг ядра i: номер хода мира — из прогона ядра (пропуски по цвету мир не двигают).</summary>
     public static void AfterCoreStep(int step)
     {
-        if (SpikeViews.Count == 0) return;
         var run = CrystalAdventure.UnityLayer.CoreRunBridge.Last;
         if (run == null || step < 0 || step >= run.Turns.Count) return;
-        ShowSpikes(run.Turns[step].Turn);
+        if (SpikeViews.Count > 0) ShowSpikes(run.Turns[step].Turn);
+        // Облака: сошёл — растворилось, через несколько ходов вернулось.
+        foreach (var e in run.Turns[step].Events)
+        {
+            if (e.Type != CrystalAdventure.Core.GameEventType.TileChanged) continue;
+            if (e.Info == "vanished") SetCloud(new Vector2Int(e.Cell.X, e.Cell.Y), false, true);
+            else if (e.Info == "restored") SetCloud(new Vector2Int(e.Cell.X, e.Cell.Y), true, true);
+        }
     }
 
     static void SetSpike(Vector2Int key, int state, bool animate)
@@ -354,6 +383,184 @@ public static class SpecialTiles
     {
         if (x < 0 || y < 0 || x >= w || y >= h) return;
         px[y * w + x] = c;
+    }
+
+    // ───────────── клетки неба (Sky): облако, ветер, телепорт ─────────────
+
+    static void AddAnimatedCap(GameObject block, SpriteRenderer sr, string name, Sprite[] frames, float fps)
+    {
+        var child = new GameObject(name);
+        child.transform.SetParent(block.transform, false);
+        var csr = child.AddComponent<SpriteRenderer>();
+        csr.sprite = frames[0];
+        csr.sortingLayerID = sr.sortingLayerID;
+        csr.sortingOrder = sr.sortingOrder + 1;
+        var anim = child.AddComponent<TileAnim>();
+        anim.Frames = frames;
+        anim.Fps = fps;
+    }
+
+    /// <summary>Облако растворяется (сошли с него) или возвращается. animate = false — сразу (Rewind).</summary>
+    static void SetCloud(Vector2Int key, bool visible, bool animate)
+    {
+        if (!AllBlocks.TryGetValue(key, out var block) || block == null) return;
+        if (!Clouds.TryGetValue(key, out var st))
+        {
+            if (visible) return; // ещё ни разу не пропадало — возвращать нечего
+            var rs = block.GetComponentsInChildren<SpriteRenderer>(true);
+            st = new CloudState { Renderers = rs, Colors = rs.Select(r => r.color).ToArray() };
+            Clouds[key] = st;
+        }
+        if (st.Gone == !visible) return;
+        st.Gone = !visible;
+        var host = ActiveBlockManager.Instance;
+        if (st.Routine != null && host != null) host.StopCoroutine(st.Routine);
+        st.Routine = null;
+        if (animate)
+        {
+            var sr = block.GetComponent<SpriteRenderer>();
+            if (sr != null)
+                PixelFX.Burst(block.transform.position + Vector3.up * 0.14f, new[] { Color.white, new Color(0.85f, 0.88f, 1f, 1f) },
+                              visible ? 6 : 12, 0.45f, 0.15f, 0.3f, sr.sortingLayerID, sr.sortingOrder + 3, PixelFX.Dot, 1.2f, 0.6f);
+            PixelSfx.Play(visible ? Sfx.Pop : Sfx.Whoosh, 0.5f, visible ? 1.3f : 1.6f);
+        }
+        if (animate && host != null) st.Routine = host.StartCoroutine(FadeCloud(st, visible ? 1f : 0f));
+        else SetCloudAlpha(st, visible ? 1f : 0f);
+    }
+
+    static IEnumerator FadeCloud(CloudState st, float to)
+    {
+        float from = 1f - to;
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.25f)
+        {
+            SetCloudAlpha(st, Mathf.Lerp(from, to, t));
+            yield return null;
+        }
+        SetCloudAlpha(st, to);
+        st.Routine = null;
+    }
+
+    static void SetCloudAlpha(CloudState st, float a)
+    {
+        for (int i = 0; i < st.Renderers.Length; i++)
+        {
+            if (st.Renderers[i] == null) continue;
+            var c = st.Colors[i];
+            c.a *= a;
+            st.Renderers[i].color = c;
+        }
+    }
+
+    static Sprite _cloudCap;
+
+    /// <summary>Облачная «шапка»: белая пушистая грань, бока — сиреневые клубы неровной длины.</summary>
+    static Sprite CloudCapSprite
+    {
+        get
+        {
+            if (_cloudCap != null) return _cloudCap;
+            var px = new Color[32 * 32];
+            var white = Color.white;
+            var shade = new Color(0.86f, 0.88f, 1f, 1f);
+            var deep = new Color(0.72f, 0.74f, 0.95f, 1f);
+            for (int y = 0; y < 32; y++)
+                for (int x = 0; x < 32; x++)
+                {
+                    if (!InCap(x, y)) continue;
+                    // Клубы на боках: полукруглые «капли» разной длины.
+                    int bump = (int)(3f * Mathf.Abs(Mathf.Sin(x * 0.55f)));
+                    if (!OnTopFace(y) && y < 12 - bump) continue;
+                    Color c = OnTopFace(y) ? (y > 23 ? white : shade) : deep;
+                    if (OnTopFace(y) && ((x + y) % 7 == 0) && y < 28) c = shade; // лёгкая «пушистость»
+                    px[y * 32 + x] = c;
+                }
+            return _cloudCap = MakeSprite(px);
+        }
+    }
+
+    static readonly Dictionary<ItemType, Sprite[]> _wind = new Dictionary<ItemType, Sprite[]>();
+
+    /// <summary>
+    /// Стрелка ветра на верхней грани (2 кадра — «подталкивает»). Направление на экране как у карточек:
+    /// Right — вправо-вверх, Forward — влево-вверх, Left — влево-вниз, Bottom — вправо-вниз.
+    /// </summary>
+    static Sprite[] WindFrames(ItemType dir)
+    {
+        if (_wind.TryGetValue(dir, out var f)) return f;
+        var v = dir == ItemType.Forward ? new Vector2Int(-2, 1) : dir == ItemType.Left ? new Vector2Int(-2, -1)
+              : dir == ItemType.Bottom ? new Vector2Int(2, -1) : new Vector2Int(2, 1);
+        f = new[] { WindArrow(v, 0), WindArrow(v, 1) };
+        _wind[dir] = f;
+        return f;
+    }
+
+    static Sprite WindArrow(Vector2Int v, int shift)
+    {
+        var px = new Color[32 * 32];
+        var arrow = Color.white;
+        var shadow = new Color(0.45f, 0.75f, 0.95f, 0.9f);
+        var c = new Vector2Int(16 + v.x / 2 * shift, 24 + v.y * shift);
+        var perp = new Vector2Int(-v.y, v.x);
+        var tip = c + v * 3;
+        var tail = c - v * 3;
+        var w1 = tip - v * 2 + perp * 2;
+        var w2 = tip - v * 2 - perp * 2;
+        foreach (var off in new[] { new Vector2Int(0, -1), Vector2Int.zero })
+        {
+            var col = off == Vector2Int.zero ? arrow : shadow;
+            Line(px, tail + off, tip + off, col);
+            Line(px, w1 + off, tip + off, col);
+            Line(px, w2 + off, tip + off, col);
+        }
+        return MakeSprite(px);
+    }
+
+    static readonly Dictionary<int, Sprite[]> _portal = new Dictionary<int, Sprite[]>();
+    static readonly Color[] PortalColors =
+    {
+        new Color(0.72f, 0.45f, 1f, 1f), new Color(0.35f, 0.86f, 1f, 1f), new Color(1f, 0.66f, 0.28f, 1f), new Color(0.5f, 1f, 0.5f, 1f),
+    };
+
+    /// <summary>Телепорт: светящееся кольцо на грани, по нему бегут искры (4 кадра). Цвет — по номеру пары.</summary>
+    static Sprite[] PortalFrames(int channel)
+    {
+        channel = Mathf.Abs(channel) % PortalColors.Length;
+        if (_portal.TryGetValue(channel, out var f)) return f;
+        var ring = PortalColors[channel];
+        var inner = new Color(ring.r * 0.35f, ring.g * 0.35f, ring.b * 0.5f, 0.85f);
+        f = new Sprite[4];
+        for (int frame = 0; frame < 4; frame++)
+        {
+            var px = new Color[32 * 32];
+            for (int y = 16; y < 32; y++)
+                for (int x = 0; x < 32; x++)
+                {
+                    float dx = (x + 0.5f - 16f) / 9f, dy = (y + 0.5f - 24.5f) / 4.5f;
+                    float d = dx * dx + dy * dy;
+                    if (d > 1f) continue;
+                    if (d > 0.62f)
+                    {
+                        float ang = Mathf.Atan2(dy, dx) / (Mathf.PI * 2f) + 0.5f; // 0..1 по кругу
+                        bool spark = Mathf.Abs(((ang * 4f + frame * 0.25f) % 1f) - 0.5f) < 0.08f;
+                        px[y * 32 + x] = spark ? Color.white : ring;
+                    }
+                    else px[y * 32 + x] = inner;
+                }
+            f[frame] = MakeSprite(px);
+        }
+        _portal[channel] = f;
+        return f;
+    }
+
+    static void Line(Color[] px, Vector2Int a, Vector2Int b, Color c)
+    {
+        int steps = Mathf.Max(Mathf.Abs(b.x - a.x), Mathf.Abs(b.y - a.y));
+        for (int i = 0; i <= steps; i++)
+        {
+            float t = steps == 0 ? 0f : i / (float)steps;
+            int x = Mathf.RoundToInt(Mathf.Lerp(a.x, b.x, t)), y = Mathf.RoundToInt(Mathf.Lerp(a.y, b.y, t));
+            if (x >= 0 && y >= 0 && x < 32 && y < 32) px[y * 32 + x] = c;
+        }
     }
 
     const int FallOrderShift = 5;

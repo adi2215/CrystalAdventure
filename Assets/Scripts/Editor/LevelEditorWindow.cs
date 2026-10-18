@@ -22,7 +22,7 @@ using UnityEngine.Tilemaps;
 /// </summary>
 public class LevelEditorWindow : EditorWindow
 {
-    enum Tool { None, Crystal, Mushroom, Start, Erase, Paint, Ice, Crumbling, Spikes }
+    enum Tool { None, Crystal, Mushroom, Start, Erase, Paint, Ice, Crumbling, Spikes, Cloud, Wind, Teleport }
 
     // Позиция Tilemap в CollectorLevel (Grid в нуле). Из неё считается characterPos.
     static readonly Vector3 DefaultGameTilemapOffset = new Vector3(0f, -1.62f, 0f);
@@ -40,6 +40,10 @@ public class LevelEditorWindow : EditorWindow
     readonly Dictionary<Vector2Int, TileColor> colors = new Dictionary<Vector2Int, TileColor>();
     readonly Dictionary<Vector2Int, int> spikePhases = new Dictionary<Vector2Int, int>();
     int spikePhase;
+    readonly Dictionary<Vector2Int, ItemType> windDirs = new Dictionary<Vector2Int, ItemType>();
+    readonly Dictionary<Vector2Int, int> portalChannels = new Dictionary<Vector2Int, int>();
+    ItemType windDir = ItemType.Right;
+    int portalChannel;
     TileColor paintColor = TileColor.Red;
     Vector2Int? start;
     bool unsaved;
@@ -122,7 +126,21 @@ public class LevelEditorWindow : EditorWindow
 
         EditorGUILayout.Space();
         EditorGUILayout.LabelField("Инструмент (клик в Scene view)", EditorStyles.boldLabel);
-        tool = (Tool)GUILayout.Toolbar((int)tool, new[] { "Нет", "Кристалл", "Гриб", "Старт", "Стереть", "Цвет", "Лёд", "Плита", "Шипы" });
+        tool = (Tool)GUILayout.Toolbar((int)tool, new[] { "Нет", "Кристалл", "Гриб", "Старт", "Стереть", "Цвет", "Лёд", "Плита", "Шипы", "Облако", "Ветер", "Телепорт" });
+        if (tool == Tool.Cloud)
+            EditorGUILayout.HelpBox("Облако (Sky): сошёл с него — пропадает на 3 хода, потом возвращается.", MessageType.None);
+        if (tool == Tool.Wind)
+        {
+            EditorGUILayout.HelpBox("Ветер (Sky): в конце хода сдвигает стоящего на клетку по стрелке (если там есть куда).", MessageType.None);
+            windDir = (ItemType)EditorGUILayout.IntPopup("Дует", (int)windDir,
+                new[] { "Forward (влево-вверх)", "Right (вправо-вверх)", "Bottom (вправо-вниз)", "Left (влево-вниз)" },
+                new[] { (int)ItemType.Forward, (int)ItemType.Right, (int)ItemType.Bottom, (int)ItemType.Left });
+        }
+        if (tool == Tool.Teleport)
+        {
+            EditorGUILayout.HelpBox("Телепорт (Sky): встал — переносит на второй телепорт с тем же номером пары.", MessageType.None);
+            portalChannel = EditorGUILayout.IntSlider("Пара №", portalChannel, 0, 3);
+        }
         if (tool == Tool.Spikes)
         {
             EditorGUILayout.HelpBox("Шипы (Forest): поднимаются каждый 3-й ход; стоишь на клетке в этот ход — смерть. Фаза — в какой из трёх ходов.", MessageType.None);
@@ -209,6 +227,8 @@ public class LevelEditorWindow : EditorWindow
         supers.Clear();
         colors.Clear();
         spikePhases.Clear();
+        windDirs.Clear();
+        portalChannels.Clear();
         start = null;
         unsaved = false;
         if (level == null || level.tiles == null) return;
@@ -221,6 +241,10 @@ public class LevelEditorWindow : EditorWindow
                 colors[new Vector2Int(info.position.x, info.position.y)] = info.color;
             if (info != null && info.superTileType == SuperBlocks.Spikes)
                 spikePhases[new Vector2Int(info.position.x, info.position.y)] = info.phase;
+            if (info != null && info.superTileType == SuperBlocks.Wind)
+                windDirs[new Vector2Int(info.position.x, info.position.y)] = info.windDir;
+            if (info != null && info.superTileType == SuperBlocks.Teleport)
+                portalChannels[new Vector2Int(info.position.x, info.position.y)] = info.channel;
         }
 
         if (tilemap == null) return;
@@ -280,7 +304,9 @@ public class LevelEditorWindow : EditorWindow
             if (columns.TryGetValue(key, out var topCell) && topCell.z == pos.z && supers.TryGetValue(key, out var t)) type = t;
             var color = columns.TryGetValue(key, out var top2) && top2.z == pos.z && colors.TryGetValue(key, out var c) ? c : TileColor.None;
             int phase = type == SuperBlocks.Spikes && spikePhases.TryGetValue(key, out var ph) ? ph : 0;
-            tiles.Add(new TileInfo { position = pos, tile = tilemap.GetTile(pos), superTileType = type, color = color, phase = phase });
+            var wind = type == SuperBlocks.Wind && windDirs.TryGetValue(key, out var wdir) ? wdir : ItemType.Right;
+            int channel = type == SuperBlocks.Teleport && portalChannels.TryGetValue(key, out var chn) ? chn : 0;
+            tiles.Add(new TileInfo { position = pos, tile = tilemap.GetTile(pos), superTileType = type, color = color, phase = phase, windDir = wind, channel = channel });
         }
 
         Undo.RecordObject(level, "Save level");
@@ -490,15 +516,20 @@ public class LevelEditorWindow : EditorWindow
     }
 
     static string Name(SuperBlocks b) => b == SuperBlocks.Crystal ? "Кристалл" : b == SuperBlocks.Mushroom ? "Гриб"
-        : b == SuperBlocks.Ice ? "Лёд" : b == SuperBlocks.Crumbling ? "Плита" : b == SuperBlocks.Spikes ? "Шипы" : "Блок";
+        : b == SuperBlocks.Ice ? "Лёд" : b == SuperBlocks.Crumbling ? "Плита" : b == SuperBlocks.Spikes ? "Шипы"
+        : b == SuperBlocks.Cloud ? "Облако" : b == SuperBlocks.Wind ? "Ветер" : b == SuperBlocks.Teleport ? "Телепорт" : "Блок";
 
     static string Letter(SuperBlocks b) => b == SuperBlocks.Crystal ? "К" : b == SuperBlocks.Mushroom ? "Г"
-        : b == SuperBlocks.Ice ? "Л" : b == SuperBlocks.Crumbling ? "П" : b == SuperBlocks.Spikes ? "Ш" : "?";
+        : b == SuperBlocks.Ice ? "Л" : b == SuperBlocks.Crumbling ? "П" : b == SuperBlocks.Spikes ? "Ш"
+        : b == SuperBlocks.Cloud ? "О" : b == SuperBlocks.Wind ? "В" : b == SuperBlocks.Teleport ? "Т" : "?";
 
     static Color MarkerColor(SuperBlocks b) => b == SuperBlocks.Crystal ? new Color(0.95f, 0.4f, 1f, 0.8f)
         : b == SuperBlocks.Ice ? new Color(0.55f, 0.9f, 1f, 0.9f)
         : b == SuperBlocks.Crumbling ? new Color(0.75f, 0.55f, 0.35f, 0.9f)
         : b == SuperBlocks.Spikes ? new Color(0.85f, 0.25f, 0.25f, 0.9f)
+        : b == SuperBlocks.Cloud ? new Color(0.95f, 0.95f, 1f, 0.9f)
+        : b == SuperBlocks.Wind ? new Color(0.5f, 0.85f, 1f, 0.9f)
+        : b == SuperBlocks.Teleport ? new Color(0.72f, 0.45f, 1f, 0.9f)
         : new Color(1f, 0.6f, 0.2f, 0.8f);
 
     string CheckAllLevels()
@@ -607,6 +638,9 @@ public class LevelEditorWindow : EditorWindow
             case Tool.Ice: supers[column] = SuperBlocks.Ice; break;
             case Tool.Crumbling: supers[column] = SuperBlocks.Crumbling; break;
             case Tool.Spikes: supers[column] = SuperBlocks.Spikes; spikePhases[column] = spikePhase; break;
+            case Tool.Cloud: supers[column] = SuperBlocks.Cloud; break;
+            case Tool.Wind: supers[column] = SuperBlocks.Wind; windDirs[column] = windDir; break;
+            case Tool.Teleport: supers[column] = SuperBlocks.Teleport; portalChannels[column] = portalChannel; break;
             case Tool.Start: start = column; break;
             case Tool.Erase:
                 supers.Remove(column);

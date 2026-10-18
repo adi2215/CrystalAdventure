@@ -92,7 +92,8 @@ public class ActiveBlockManager : MonoBehaviour
         }
 
         // Лёд и рассыпающиеся плиты рисует и возвращает World/SpecialTiles.
-        if (pos.superTileType == SuperBlocks.Ice || pos.superTileType == SuperBlocks.Crumbling || pos.superTileType == SuperBlocks.Spikes) return;
+        if (pos.superTileType == SuperBlocks.Ice || pos.superTileType == SuperBlocks.Crumbling || pos.superTileType == SuperBlocks.Spikes ||
+            pos.superTileType == SuperBlocks.Cloud || pos.superTileType == SuperBlocks.Wind || pos.superTileType == SuperBlocks.Teleport) return;
 
         activeTileMap[pos.position] = pos.tile;
         tileStepCounts[pos.position] = 0;

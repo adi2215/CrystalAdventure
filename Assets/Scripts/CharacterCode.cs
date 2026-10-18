@@ -375,6 +375,13 @@ public class CharacterCode : MonoBehaviour
             }
             if (token != _runToken) yield break; // победа или Rewind прямо на этом шаге
 
+            // Клетки неба: после шага сдуло ветром или перенёс телепорт.
+            if (core && planned.Special != CrystalAdventure.UnityLayer.SpecialMove.None)
+            {
+                yield return SpecialMove(planned, map);
+                if (token != _runToken) yield break;
+            }
+
             // Ушёл с рассыпающейся плиты — она падает (Winter). Повторный вызов безопасен.
             if (step.target != null && leftTile != null && leftTile != _tile && SpecialTiles.IsCrumbling(leftTile))
                 SpecialTiles.Crumble(leftTile);
@@ -564,7 +571,10 @@ public class CharacterCode : MonoBehaviour
     {
         var step = new WayTiles.Step();
         if (!planned.Moved || map == null) return step;
-        if (!map.TryGetValue(new Vector3Int(planned.To.x, planned.To.y, 0), out var target) || target == null) return step;
+        // Сдуло ветром / перенёс телепорт: сам шаг — только до клетки, где это случилось (SpecialMove — потом).
+        var dest = planned.Special != CrystalAdventure.UnityLayer.SpecialMove.None ? planned.SpecialFrom : planned.To;
+        if (_tile != null && dest.x == _tile.gridLocation.x && dest.y == _tile.gridLocation.y) return step;
+        if (!map.TryGetValue(new Vector3Int(dest.x, dest.y, 0), out var target) || target == null) return step;
         step.target = target;
         step.fromMushroom = WayTiles.IsMushroom(_tile);
         step.onMushroom = WayTiles.IsMushroom(target);
@@ -609,6 +619,61 @@ public class CharacterCode : MonoBehaviour
         transform.rotation = Quaternion.identity;
         Squash(-0.12f);
         PositionCharacterOnLine(target, collect: true);
+    }
+
+    // ============================================================
+    //              КЛЕТКИ НЕБА: ВЕТЕР И ТЕЛЕПОРТ
+    // ============================================================
+
+    static readonly Color[] WindStreaks = { new Color(0.9f, 0.97f, 1f, 1f), new Color(0.7f, 0.88f, 1f, 1f), Color.white };
+
+    IEnumerator SpecialMove(CrystalAdventure.UnityLayer.CorePlannedStep planned, Dictionary<Vector3Int, OverlayTile> map)
+    {
+        if (map == null || !map.TryGetValue(new Vector3Int(planned.To.x, planned.To.y, 0), out var target) || target == null) yield break;
+        if (planned.Special == CrystalAdventure.UnityLayer.SpecialMove.Teleported) yield return TeleportTo(target);
+        else yield return WindPush(target);
+    }
+
+    /// <summary>Ветер сдувает куб на соседнюю клетку: ровно, без прыжка, с белыми полосками ветра.</summary>
+    IEnumerator WindPush(OverlayTile target)
+    {
+        RaiseOrderFor(target);
+        Vector3 start = transform.localPosition;
+        Vector3 end = ToLocal(TopOf(target));
+        PixelSfx.Play(Sfx.Whoosh, 0.6f, 1.4f);
+        float lean = end.x >= start.x ? -8f : 8f;
+        float nextStreak = 0f;
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.28f)
+        {
+            float k = Mathf.SmoothStep(0f, 1f, t);
+            transform.localPosition = Vector3.Lerp(start, end, k);
+            transform.rotation = Quaternion.Euler(0f, 0f, lean * Mathf.Sin(t * Mathf.PI));
+            if (t >= nextStreak && order != null)
+            {
+                nextStreak += 0.3f;
+                PixelFX.Burst(transform.position + Vector3.up * 0.1f, WindStreaks, 3, 0.35f, 0.02f, 0.2f,
+                              order.sortingLayerID, order.sortingOrder + 1, PixelFX.Dot, 0.7f, 0.3f);
+            }
+            yield return null;
+        }
+        transform.localPosition = end;
+        transform.rotation = Quaternion.identity;
+        PositionCharacterOnLine(target, collect: true);
+    }
+
+    /// <summary>Телепорт: куб растворяется в искрах на одной площадке и проявляется на парной.</summary>
+    IEnumerator TeleportTo(OverlayTile target)
+    {
+        PixelSfx.Play(Sfx.Ghost, 0.8f, 1.3f);
+        TeleportSparkles(0.4f);
+        Squash(0.35f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.18f) { SetAlpha(1f - t); yield return null; }
+        SetAlpha(0f);
+        PositionCharacterOnLine(target, collect: true);
+        TeleportSparkles(0.4f);
+        Squash(0.3f);
+        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.18f) { SetAlpha(t); yield return null; }
+        SetAlpha(1f);
     }
 
     static readonly Color[] IceChips = { new Color(0.85f, 0.97f, 1f, 1f), new Color(0.6f, 0.85f, 0.98f, 1f), Color.white };
