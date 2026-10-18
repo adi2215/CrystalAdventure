@@ -6,8 +6,47 @@ public static class SaveManager
 {
     private static string savePath => Application.persistentDataPath + "/levels.json";
 
+    /// <summary>Под этим Product Name игра выходила раньше — оттуда переносим старое сохранение.</summary>
+    private const string LegacyProductName = "BetaCube";
+    private static bool _migrationChecked;
+
+    /// <summary>
+    /// Перенос сохранения после переименования игры (BetaCube → Crystal Adventure - The Ascent).
+    ///
+    /// На Windows/Mac/Linux Application.persistentDataPath = .../{Company Name}/{Product Name},
+    /// поэтому смена Product Name в Player Settings «теряла» прогресс уже вышедших игроков:
+    /// игра начинала смотреть в новую пустую папку. Если в новой папке сохранения нет,
+    /// а в соседней папке BetaCube оно есть — копируем (старый файл не трогаем, на всякий случай).
+    /// На Android/iOS путь зависит от bundle id, а не от Product Name, — там просто ничего не найдётся.
+    /// </summary>
+    private static void MigrateLegacySave()
+    {
+        if (_migrationChecked) return;
+        _migrationChecked = true;
+        try
+        {
+            if (File.Exists(savePath)) return;
+            if (Application.productName == LegacyProductName) return;
+
+            var parent = Directory.GetParent(Application.persistentDataPath);
+            if (parent == null) return;
+
+            string legacy = Path.Combine(parent.FullName, LegacyProductName, "levels.json");
+            if (!File.Exists(legacy)) return;
+
+            Directory.CreateDirectory(Application.persistentDataPath);
+            File.Copy(legacy, savePath);
+            Debug.Log("[SaveManager] Сохранение перенесено из " + legacy);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[SaveManager] Не удалось перенести старое сохранение: " + e.Message);
+        }
+    }
+
     public static LevelSaveDatabase Load()
     {
+        MigrateLegacySave();
         try
         {
             if (File.Exists(savePath))
@@ -66,6 +105,7 @@ public static class SaveManager
 
     public static void Init(int totalLevels)
     {
+        MigrateLegacySave();
         if (File.Exists(savePath))
             return; 
 
