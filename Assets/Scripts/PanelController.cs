@@ -29,6 +29,11 @@ public class PanelController : MonoBehaviour
             if (buttonPanels[i] != null) initialPositions[i] = buttonPanels[i].transform.localPosition;
             isMoved[i] = false;
         }
+
+        // Вкладка F2 в сцене выключена (раньше уровней с F2 не было) — включаем её только там, где у уровня
+        // есть панель F2 (третья по счёту). Вкладки Main и F1 не трогаем — они как были.
+        if (buttonPanels.Length > 2 && buttonPanels[2] != null)
+            buttonPanels[2].SetActive(numberOfPanels > 2);
     }
 
     public void ChoosePanel(GameObject selectedPanel)

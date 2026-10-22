@@ -19,8 +19,6 @@ using UnityEngine;
 /// </summary>
 public static class SpecialTiles
 {
-    const int LevelsPerChapter = 15;   // как UI/LevelMapMenu: Forest / Winter / Sky
-    const int WinterChapter = 1;
 
     static readonly Dictionary<Vector2Int, SuperBlocks> Current = new Dictionary<Vector2Int, SuperBlocks>();
     static readonly Dictionary<Vector2Int, GameObject> Blocks = new Dictionary<Vector2Int, GameObject>();
@@ -93,7 +91,7 @@ public static class SpecialTiles
         WindDir.Clear();
         PortalChannel.Clear();
         Clouds.Clear();
-        _winter = levelIndex / LevelsPerChapter == WinterChapter;
+        _winter = LevelChapters.ChapterOf(levelIndex) == LevelChapters.Winter; // снег — на уровнях главы Winter
         if (level == null || level.tiles == null) return;
 
         // Особая клетка — у верхнего блока колонки (как кристаллы и грибы).

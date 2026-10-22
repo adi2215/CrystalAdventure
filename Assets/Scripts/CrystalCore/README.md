@@ -67,7 +67,7 @@ LevelDefinition ──► LevelSetup ──► Simulation.Run ──► Simulati
 Добавь в `enum ItemType` значения с такими же именами, как в `ActionType`:
 `Attack, SuperAttack, Shield, Interact, BreakIce, Spell, ChangeWind, Wait` — адаптер подхватит их сам.
 
-## Текстовые программы (тесты, эталонные решения, подсказки Luma)
+## Текстовые программы (тесты, эталонные решения, подсказки Ela)
 ```
 def A { F F A }            // функция
 repeat 3 { call A R }      // повторить

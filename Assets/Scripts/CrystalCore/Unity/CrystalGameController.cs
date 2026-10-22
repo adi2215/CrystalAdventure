@@ -131,7 +131,7 @@ namespace CrystalAdventure.UnityLayer
             Play(_program);
         }
 
-        /// <summary>Запустить произвольную программу (подсказки Luma, демо, тесты).</summary>
+        /// <summary>Запустить произвольную программу (подсказки Ela, демо, тесты).</summary>
         public void Play(ProgramDef program)
         {
             BuildViews(); // каждый запуск — с чистого уровня

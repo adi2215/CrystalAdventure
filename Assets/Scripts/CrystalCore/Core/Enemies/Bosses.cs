@@ -24,7 +24,7 @@ namespace CrystalAdventure.Core
         public BossMove[] Cycle;        // повторяющийся рисунок приёмов
         public bool ArmorOnEnter;       // в начале фазы надевает ледяную броню (нужна Super Attack / Break Ice)
         public string SummonArchetype = "ForestDrone";
-        public string Line;             // реплика при входе в фазу (для диалогов Luma)
+        public string Line;             // реплика при входе в фазу (для диалогов Ela)
     }
 
     /// <summary>
