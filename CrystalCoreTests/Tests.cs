@@ -378,6 +378,7 @@ static class Program
 
         LegacyTests.RunAll();
         WinterTests.RunAll();
+        FunctionTwoTests.RunAll();
         EnemyTests.RunAll();
         SpikeTests.RunAll();
         SkyTests.RunAll();

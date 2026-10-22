@@ -332,7 +332,16 @@ public static class LevelSolver
                 for (int n = 1; n <= MaxWhileIterations; n++) mainAlphabet.Add(new Card(ItemType.While, n));
             f1Alphabet = FunctionAlphabet(p.F1Cards, colors);
             f2Alphabet = FunctionAlphabet(p.F2Cards, colors);
+            // F1 может вызывать F2 (карточка F2 на панели F1) — «функция в функции».
+            f1CallsF2 = Has(p.F1Cards, ItemType.FunctionTwo) && f2Alphabet != null;
+            if (f1CallsF2)
+            {
+                if (f1Alphabet == null) f1Alphabet = new List<Card>();
+                f1Alphabet.Add(new Card(ItemType.FunctionTwo));
+            }
         }
+
+        readonly bool f1CallsF2;
 
         static List<Card> FunctionAlphabet(ItemType[] cards, List<TileColor> colors)
         {
@@ -357,15 +366,16 @@ public static class LevelSolver
 
             for (int m1 = 0; m1 <= maxF1; m1++)
             {
-                int maxF2 = useF2 ? Math.Min(MaxCardsPerPanel, k - 1 - m1) : 0;
+                int maxF2 = useF2 || (f1CallsF2 && m1 > 0) ? Math.Min(MaxCardsPerPanel, k - 1 - m1) : 0;
                 for (int m2 = 0; m2 <= maxF2; m2++)
                 {
                     int mainLen = k - m1 - m2;
                     if (mainLen < 1 || mainLen > MaxCardsPerPanel) continue;
 
-                    foreach (var f1 in Functions(f1Alphabet, m1))
+                    // F2 перебирается первой: F1 может её вызывать, и её развёртка нужна для развёртки F1.
+                    foreach (var f2 in Functions(f2Alphabet, m2, null))
                     {
-                        foreach (var f2 in Functions(f2Alphabet, m2))
+                        foreach (var f1 in Functions(f1Alphabet, m1, f2.exp))
                         {
                             if (OutOfBudget) return false;
                             f1Cards = f1.cards; f1Exp = f1.exp;
@@ -373,7 +383,10 @@ public static class LevelSolver
                             seen.Clear();
                             mainStack.Clear();
                             var s = new Sim { Pos = map.Start };
-                            if (Dfs(s, new List<int>(), new List<int>(), 0, 0UL, mainLen, m1 > 0, m2 > 0))
+                            // F2 вызвана изнутри F1 — Main уже не обязана вызывать её сама.
+                            bool f2ViaF1 = f1.cards.Exists(c => c.Type == ItemType.FunctionTwo);
+                            if (m2 > 0 && !useF2 && !f2ViaF1) continue; // F2 заполнена, но её никто не вызывает
+                            if (Dfs(s, new List<int>(), new List<int>(), 0, 0UL, mainLen, m1 > 0, m2 > 0 && !f2ViaF1))
                             {
                                 sol = (new List<Card>(mainStack), new List<Card>(f1Cards), new List<Card>(f2Cards));
                                 return true;
@@ -385,7 +398,8 @@ public static class LevelSolver
             return false;
         }
 
-        IEnumerable<(List<Card> cards, List<int> exp)> Functions(List<Card> alphabet, int len)
+        /// <param name="inner">развёртка F2 — для карточки F2 внутри F1 (null — вызывать нечего)</param>
+        IEnumerable<(List<Card> cards, List<int> exp)> Functions(List<Card> alphabet, int len, List<int> inner)
         {
             if (len == 0) { yield return (new List<Card>(), new List<int>()); yield break; }
             if (alphabet == null) yield break;
@@ -395,7 +409,7 @@ public static class LevelSolver
             {
                 var cards = new List<Card>(len);
                 for (int i = 0; i < len; i++) cards.Add(alphabet[idx[i]]);
-                var exp = ExpandFunction(cards);
+                var exp = ExpandFunction(cards, inner);
                 // While в начале функции ничего не повторяет — такие варианты пропускаем.
                 if (exp != null && exp.Count > 0 && cards[0].Type != ItemType.While && seenExp.Add(string.Join(",", exp)))
                     yield return (cards, exp);
@@ -406,8 +420,11 @@ public static class LevelSolver
             }
         }
 
-        /// <summary>Функции перебираются только с «полной» скобкой (span 0) — иначе перебор взрывается.</summary>
-        static List<int> ExpandFunction(List<Card> cards)
+        /// <summary>
+        /// Функции перебираются только с «полной» скобкой (span 0) — иначе перебор взрывается.
+        /// Карточка F2 внутри F1 подставляет развёртку F2 (inner); пустая F2 — такой вариант не нужен.
+        /// </summary>
+        static List<int> ExpandFunction(List<Card> cards, List<int> inner)
         {
             var local = new List<int>();
             int segStart = 0;
@@ -418,6 +435,11 @@ public static class LevelSolver
                     var body = local.GetRange(segStart, local.Count - segStart);
                     for (int r = 0; r < c.Iterations && local.Count + body.Count <= MaxQueue; r++) local.AddRange(body);
                     segStart = local.Count;
+                }
+                else if (c.Type == ItemType.FunctionTwo)
+                {
+                    if (inner == null || inner.Count == 0) return null;
+                    local.AddRange(inner);
                 }
                 else local.Add(Atom(c));
                 if (local.Count > MaxQueue) return null;

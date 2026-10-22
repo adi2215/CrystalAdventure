@@ -194,6 +194,21 @@ public static class Loc
         { "Add the F1 card. One card = all four moves!", "Добавь карточку F1. Одна карточка = все четыре хода!" },
         { "Use F1 again whenever the stairs repeat. Finish the path yourself!", "Ставь F1 каждый раз, когда лесенка повторяется. Дальше — сам!" },
 
+        // ── Туториал: вторая функция (LevelWinter10) ──
+        { "A new card: F2! It is a second function.", "Новая карточка: F2! Это вторая функция." },
+        { "Look: this time Main has no arrows. Only F1 and F2!", "Смотри: в этот раз в Main нет стрелок. Только F1 и F2!" },
+        { "The path goes down the stairs two times, then up the stairs two times.", "Дорожка два раза спускается лесенкой, а потом два раза поднимается." },
+        { "F1 will be the way down. Open the F1 tab.", "F1 будет спуском. Открой вкладку F1." },
+        { "Down the stairs: put the Back card two times...", "Спуск: положи карточку Назад два раза..." },
+        { "...and one Right card.", "...и одну карточку Вправо." },
+        { "F2 will be the way up. Open the F2 tab.", "F2 будет подъёмом. Открой вкладку F2." },
+        { "Up the stairs: first one Right card...", "Подъём: сначала одна карточка Вправо..." },
+        { "...then the Forward card two times.", "...потом карточка Вперёд два раза." },
+        { "Both functions are ready! Go back to the Main tab.", "Обе функции готовы! Вернись на вкладку Main." },
+        { "Down two times: put F1 two times.", "Спуститься два раза: положи F1 два раза." },
+        { "Up two times: put F2 two times.", "Подняться два раза: положи F2 два раза." },
+        { "Ten cards for the whole valley. Press Play!", "Десять карточек на всю долину. Жми Play!" },
+
         // ── Туториал: циклы ──
         { "Ooh, a new card: LOOP! It repeats other cards for you.", "О, новая карточка: ЦИКЛ! Он повторяет другие карточки за тебя." },
         { "Look at this bridge: one step Forward... and then a LOT of steps Right!", "Посмотри на мостик: один шаг Вперёд... а потом МНОГО шагов Вправо!" },

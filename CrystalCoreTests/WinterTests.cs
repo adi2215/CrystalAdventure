@@ -94,6 +94,7 @@ static class WinterTests
                 {
                     { DraftLevels.ForwardGuid, ItemType.Forward }, { DraftLevels.LeftGuid, ItemType.Left }, { DraftLevels.RightGuid, ItemType.Right },
                     { DraftLevels.BottomGuid, ItemType.Bottom }, { DraftLevels.FunctionOneGuid, ItemType.FunctionOne }, { DraftLevels.WhileGuid, ItemType.While },
+                    { WinterLevels.FunctionTwoGuid, ItemType.FunctionTwo },
                 };
                 var lvl = new LevelSt { name = spec.Name };
                 WinterLevels.Build(lvl, spec, i => new UnityEngine.Tilemaps.TileBase(), g => { var it = new Item(); it.type = types[g]; return it; });
