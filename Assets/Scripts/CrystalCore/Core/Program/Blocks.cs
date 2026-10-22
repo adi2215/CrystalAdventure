@@ -107,7 +107,7 @@ namespace CrystalAdventure.Core
         }
     }
 
-    /// <summary>Удобная сборка программ (для тестов, обучения, подсказок Luma).</summary>
+    /// <summary>Удобная сборка программ (для тестов, обучения, подсказок Ela).</summary>
     public sealed class ProgramBuilder
     {
         readonly List<Block> _target;

@@ -150,7 +150,7 @@ public class TutorialDirector : MonoBehaviour
         StartCoroutine(Punch(_box, 0.05f));
         // На шагах «тап» любой клик сначала допечатывает текст, потом ведёт дальше.
         _catcher.raycastTarget = step.wait == TutorialWait.Tap;
-        yield return TypeText(step.text);
+        yield return TypeText(Loc.T(step.text)); // тексты туториала — по-английски, перевод — Loc
 
         switch (step.wait)
         {
@@ -794,6 +794,7 @@ public class TutorialDirector : MonoBehaviour
         tagImg.raycastTarget = false;
         _name = NewText(tag, script.speakerName, 32f, TextAlignmentOptions.Center);
         _name.color = Color.white;
+        LocText.Bind(_name, script.speakerName, fit: true);
 
         // текст
         var textRt = NewRect("Text", _box);
@@ -832,7 +833,9 @@ public class TutorialDirector : MonoBehaviour
         skipImg.color = new Color(0.55f, 0.5f, 0.62f, 1f);
         var skipBtn = skip.gameObject.AddComponent<Button>();
         skipBtn.onClick.AddListener(() => _skip = true);
-        NewText(skip, "Skip", 26f, TextAlignmentOptions.Center).color = Color.white;
+        var skipText = NewText(skip, "Skip", 26f, TextAlignmentOptions.Center);
+        skipText.color = Color.white;
+        LocText.Bind(skipText, "Skip", fit: true);
         ButtonJuice.Ensure(skip.gameObject);
 
         _box.localScale = Vector3.zero;

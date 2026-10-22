@@ -265,6 +265,9 @@ public class StoryDirector : MonoBehaviour
         _nameTagImg.raycastTarget = false;
         _name = NewText(_nameTag, "", 32f, TextAlignmentOptions.Center);
         _name.color = Color.white;
+        _name.enableAutoSizing = true; // длинные имена («Forest Guardian», «Небесный кит») уменьшаются
+        _name.fontSizeMax = 32f;
+        _name.fontSizeMin = 18f;
 
         var textRt = NewRect("Text", _box);
         Stretch(textRt);
@@ -297,7 +300,9 @@ public class StoryDirector : MonoBehaviour
         skipImg.color = new Color(0.55f, 0.5f, 0.62f, 1f);
         var skipBtn = skip.gameObject.AddComponent<Button>();
         skipBtn.onClick.AddListener(() => { _skip = true; _tapped = true; });
-        NewText(skip, "Skip", 28f, TextAlignmentOptions.Center).color = Color.white;
+        var skipText = NewText(skip, "Skip", 28f, TextAlignmentOptions.Center);
+        skipText.color = Color.white;
+        LocText.Bind(skipText, "Skip", fit: true);
         ButtonJuice.Ensure(skip.gameObject);
 
         _box.localScale = Vector3.zero;
@@ -312,7 +317,7 @@ public class StoryDirector : MonoBehaviour
         _nameTag.gameObject.SetActive(!narrator);
         if (!narrator)
         {
-            _name.text = s.Name;
+            _name.text = Loc.T(s.Name);
             _nameTagImg.color = s.Tag;
         }
         if (s.Portrait != null)
@@ -334,7 +339,7 @@ public class StoryDirector : MonoBehaviour
             PixelSfx.Play(Sfx.Open, 0.7f);
             yield return Tween(0.3f, k => _box.localScale = Vector3.one * BackOut(k));
         }
-        yield return TypeText(line);
+        yield return TypeText(Loc.T(line)); // тексты — по-английски, перевод — Loc
         _next.gameObject.SetActive(true);
         _tapped = false;
         while (!_tapped && !_skip) yield return null;
@@ -485,6 +490,15 @@ public class StoryDirector : MonoBehaviour
             MenuButton("Settings", new Vector2(380f, -470f), new Vector2(300f, 84f), new Color(0.62f, 0.80f, 1f, 1f), 40f, () => choice = "settings"),
         };
 
+        // Язык — в правом верхнем углу: тап переключает English / Русский, надписи меняются сразу.
+        var language = MenuButton("Language", new Vector2(790f, 475f), new Vector2(260f, 72f), new Color(0.62f, 0.80f, 1f, 1f), 34f, () =>
+        {
+            Loc.Toggle();
+            PixelSfx.Play(Sfx.Click, 0.8f, Loc.IsRussian ? 0.9f : 1.1f);
+        });
+        LocText.Bind(language.GetComponentInChildren<TextMeshProUGUI>(), () => Loc.CurrentName, fit: true);
+        buttons.Add(language);
+
         yield return Tween(0.6f, k => _black.color = new Color(0f, 0f, 0f, 1f - k));
         PixelSfx.Play(Sfx.Open, 0.8f);
 
@@ -572,6 +586,7 @@ public class StoryDirector : MonoBehaviour
         btn.onClick.AddListener(() => onClick());
         var t = NewText(rt, label, fontSize, TextAlignmentOptions.Center);
         t.color = Ink;
+        LocText.Bind(t, label, fit: true); // язык можно сменить прямо на титульном экране
         ButtonJuice.Ensure(rt.gameObject, true);
         return rt.gameObject;
     }
@@ -743,7 +758,7 @@ public class StoryDirector : MonoBehaviour
             PixelSfx.Play(Sfx.Blip, 0.5f, 0.9f + i * 0.05f, 0f);
             yield return Wait(0.09f);
         }
-        var ascent = NewText(_stage, "THE ASCENT", 150f, TextAlignmentOptions.Center);
+        var ascent = NewText(_stage, Loc.T("THE ASCENT"), 150f, TextAlignmentOptions.Center);
         ascent.color = Gold;
         Place(ascent.rectTransform, new Vector2(0f, 420f), new Vector2(1600f, 200f));
         PixelSfx.Play(Sfx.Star, 1f, 0.9f);

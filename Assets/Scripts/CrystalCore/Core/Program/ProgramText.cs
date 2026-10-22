@@ -6,7 +6,7 @@ namespace CrystalAdventure.Core
 {
     /// <summary>
     /// Текстовая запись программы. Нужна для тестов, эталонных решений уровней
-    /// и подсказок Luma («Recommended first block: ...»).
+    /// и подсказок Ela («Recommended first block: ...»).
     ///
     ///   def A { F F A }
     ///   repeat 3 { call A R }

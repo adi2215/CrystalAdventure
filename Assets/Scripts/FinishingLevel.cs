@@ -64,7 +64,7 @@ public class FinishingLevel : MonoBehaviour
     public GameObject nextButton;
     public TMP_FontAsset font;
 
-    [Header("Тексты строк итогов ({0}, {1} — числа)")]
+    [Header("Тексты строк итогов ({0}, {1} — числа; по-английски — перевод в Loc)")]
     public string cardsLine = "Cards: {0}  (best {1})";
     public string cardsLineNoBest = "Cards: {0}";
     public string hintsGood = "No hints";
@@ -103,16 +103,16 @@ public class FinishingLevel : MonoBehaviour
 
         var rows = new List<Row>();
         if (level != null && level.optimalCards > 0)
-            rows.Add(new Row { text = string.Format(cardsLine, used, level.optimalCards), good = used <= level.optimalCards, icon = RowIcon.Cards });
+            rows.Add(new Row { text = Loc.F(cardsLine, used, level.optimalCards), good = used <= level.optimalCards, icon = RowIcon.Cards });
         else
-            rows.Add(new Row { text = string.Format(cardsLineNoBest, used), good = starCount >= 3, icon = RowIcon.Cards });
+            rows.Add(new Row { text = Loc.F(cardsLineNoBest, used), good = starCount >= 3, icon = RowIcon.Cards });
         rows.Add(HintSystem.HintsUsed == 0
-            ? new Row { text = hintsGood, good = true, icon = RowIcon.Hint }
-            : new Row { text = string.Format(hintsBad, HintSystem.HintsUsed), good = false, icon = RowIcon.Hint });
+            ? new Row { text = Loc.T(hintsGood), good = true, icon = RowIcon.Hint }
+            : new Row { text = Loc.F(hintsBad, HintSystem.HintsUsed), good = false, icon = RowIcon.Hint });
         int edges = MovingManager.LastRunEdgeHits;
         rows.Add(edges == 0
-            ? new Row { text = edgeGood, good = true, icon = RowIcon.Edge }
-            : new Row { text = string.Format(edgeBad, edges), good = false, icon = RowIcon.Edge });
+            ? new Row { text = Loc.T(edgeGood), good = true, icon = RowIcon.Edge }
+            : new Row { text = Loc.F(edgeBad, edges), good = false, icon = RowIcon.Edge });
 
         _skip = false;
         StopAllCoroutines();

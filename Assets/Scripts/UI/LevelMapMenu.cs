@@ -9,7 +9,8 @@ using UnityEngine.UI;
 /// Меню уровней — «карта главы». Создаётся само при загрузке игровой сцены, в сцене ничего настраивать не нужно.
 ///
 /// • Внизу слева кнопка «Levels» открывает карту.
-/// • Уровни идут змейкой по главам (Forest / Winter / Sky — по 15), между ними — тропинка из точек.
+/// • Уровни идут змейкой по главам (Forest / Winter / Sky — главу закрывает уровень с боссом,
+///   см. LevelChapters), между ними — тропинка из точек.
 /// • Пройденные — зелёные со звёздами, текущий — золотой, над ним прыгает куб, закрытые — серые с замком.
 /// • Клик по уровню — карта закрывается, куб улетает, облака, уровень загружается.
 /// • Старые кнопки «1 2 3 …» внизу слева прячутся автоматически.
@@ -19,8 +20,6 @@ using UnityEngine.UI;
 public class LevelMapMenu : MonoBehaviour
 {
     // ─────────── настройки (меняются здесь, в коде) ───────────
-    static readonly string[] ChapterNames = { "Forest", "Winter", "Sky" };
-    const int LevelsPerChapter = 15;
     const int Columns = 5;
     const float CellW = 250f, CellH = 230f, NodeSize = 130f;
 
@@ -153,6 +152,7 @@ public class LevelMapMenu : MonoBehaviour
 
         var label = Text(btn, "Levels", 34f, TextAlignmentOptions.MidlineLeft);
         label.rectTransform.offsetMin = new Vector2(84f, 0f);
+        LocText.Bind(label, "Levels", fit: true); // язык меняется в настройках — подпись обновится сама
         ButtonJuice.Ensure(btn.gameObject);
         _openButton = btn.gameObject;
 
@@ -263,7 +263,8 @@ public class LevelMapMenu : MonoBehaviour
         _heroIcon = null;
 
         var data = FindObjectOfType<TilemapData>();
-        int count = data != null && data.tilemapData != null ? data.tilemapData.Length : 0;
+        var levels = data != null ? data.tilemapData : null;
+        int count = levels != null ? levels.Length : 0;
         var progress = LoadProgress(count);
         int current = 0;
         while (current < count - 1 && progress[current] > 0) current++;
@@ -276,11 +277,11 @@ public class LevelMapMenu : MonoBehaviour
         StartCoroutine(FloatingSparkles(bg));
 
         // Заголовок
-        int chapter = Mathf.Clamp(current / LevelsPerChapter, 0, ChapterNames.Length - 1);
-        var title = Text(_root, ChapterNames[chapter], 88f, TextAlignmentOptions.Center);
+        int chapter = LevelChapters.ChapterOf(levels, current);
+        var title = Text(_root, LevelChapters.Name(chapter), 88f, TextAlignmentOptions.Center);
         Anchor(title.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -90f), new Vector2(900f, 120f));
         title.color = NodeCurrent;
-        var sub = Text(_root, "Choose a level", 34f, TextAlignmentOptions.Center);
+        var sub = Text(_root, Loc.T("Choose a level"), 34f, TextAlignmentOptions.Center);
         Anchor(sub.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, -165f), new Vector2(900f, 50f));
         sub.color = new Color(1f, 1f, 1f, 0.7f);
 
@@ -328,16 +329,19 @@ public class LevelMapMenu : MonoBehaviour
         scroll.content = _content;
         scroll.viewport = view;
 
-        // Позиции: главы по 15 уровней, внутри — змейка по 5 в ряд.
+        // Позиции: главы (LevelChapters — главу закрывает босс), внутри — змейка по 5 в ряд.
         var positions = new List<Vector2>();
         float y = -60f;
+        int chapterStart = 0, lastChapter = 0;
         for (int i = 0; i < count; i++)
         {
-            int inChapter = i % LevelsPerChapter;
+            int ch = LevelChapters.ChapterOf(levels, i);
+            if (ch != lastChapter) { lastChapter = ch; chapterStart = i; }
+            int inChapter = i - chapterStart;
             if (inChapter == 0 && i > 0)
             {
                 y -= CellH * 0.6f;
-                var header = Text(_content, ChapterNames[Mathf.Min(i / LevelsPerChapter, ChapterNames.Length - 1)], 48f, TextAlignmentOptions.Center);
+                var header = Text(_content, LevelChapters.Name(ch), 48f, TextAlignmentOptions.Center);
                 Anchor(header.rectTransform, new Vector2(0.5f, 1f), new Vector2(0f, y + 40f), new Vector2(600f, 70f));
                 header.color = NodeCurrent;
                 y -= 70f;

@@ -4,7 +4,8 @@ using UnityEngine;
 using UnityEngine.UI;
 
 /// <summary>
-/// Окно настроек: громкость музыки (GameMusic.Volume) и звуков (PixelSfx.Volume), по 10 делений.
+/// Окно настроек: громкость музыки (GameMusic.Volume) и звуков (PixelSfx.Volume), по 10 делений,
+/// и язык (English / Русский — Loc; тексты окна и игры меняются сразу).
 /// Создаётся кодом поверх всего (свой холст), значения сразу сохраняются в PlayerPrefs.
 /// Открывается с титульного экрана (StoryDirector); можно звать откуда угодно: SettingsPanel.Open().
 ///
@@ -59,7 +60,7 @@ public class SettingsPanel : MonoBehaviour
         dimBtn.onClick.AddListener(Close);
 
         _window = NewRect("Window", root);
-        Place(_window, Vector2.zero, new Vector2(980f, 600f));
+        Place(_window, Vector2.zero, new Vector2(980f, 730f));
         var bg = _window.gameObject.AddComponent<Image>();
         bg.sprite = PixelSprites.Panel;
         bg.type = Image.Type.Sliced;
@@ -67,12 +68,15 @@ public class SettingsPanel : MonoBehaviour
         _window.gameObject.AddComponent<Button>().transition = Selectable.Transition.None; // клик по окну не закрывает
 
         var title = Text(_window, "Settings", 64f);
-        Place(title.rectTransform, new Vector2(0f, 220f), new Vector2(800f, 90f));
+        Place(title.rectTransform, new Vector2(0f, 285f), new Vector2(800f, 90f));
+        LocText.Bind(title, "Settings", fit: true);
 
-        VolumeRow(new Vector2(0f, 80f), "Music", () => GameMusic.Volume, v => GameMusic.Volume = v, false);
-        VolumeRow(new Vector2(0f, -60f), "Sounds", () => PixelSfx.Volume, v => PixelSfx.Volume = v, true);
+        VolumeRow(new Vector2(0f, 145f), "Music", () => GameMusic.Volume, v => GameMusic.Volume = v, false);
+        VolumeRow(new Vector2(0f, 5f), "Sounds", () => PixelSfx.Volume, v => PixelSfx.Volume = v, true);
+        LanguageRow(new Vector2(0f, -135f));
 
-        var close = Button(_window, "Close", new Vector2(0f, -215f), new Vector2(300f, 96f), On, Close);
+        var close = Button(_window, "Close", new Vector2(0f, -280f), new Vector2(300f, 96f), On, Close);
+        LocText.Bind(close.GetComponentInChildren<TextMeshProUGUI>(), "Close", fit: true);
         ButtonJuice.Ensure(close, true);
 
         PixelSfx.Play(Sfx.Open, 0.8f);
@@ -87,6 +91,7 @@ public class SettingsPanel : MonoBehaviour
         var name = Text(row, label, 46f);
         name.alignment = TextAlignmentOptions.MidlineLeft;
         Place(name.rectTransform, new Vector2(-300f, 0f), new Vector2(260f, 90f));
+        LocText.Bind(name, label, fit: true);
 
         var segs = new Image[Steps];
         void Refresh()
@@ -122,6 +127,26 @@ public class SettingsPanel : MonoBehaviour
         }
         Button(row, "+", new Vector2(370f, 0f), new Vector2(72f, 72f), Off, () => SetLevel(Mathf.RoundToInt(get() * Steps) + 1));
         Refresh();
+    }
+
+    /// <summary>Язык: кнопка с названием текущего языка, тап — другой язык.</summary>
+    void LanguageRow(Vector2 pos)
+    {
+        var row = NewRect("Language", _window);
+        Place(row, pos, new Vector2(900f, 100f));
+
+        var name = Text(row, "Language", 46f);
+        name.alignment = TextAlignmentOptions.MidlineLeft;
+        Place(name.rectTransform, new Vector2(-300f, 0f), new Vector2(260f, 90f));
+        LocText.Bind(name, "Language", fit: true);
+
+        var button = Button(row, Loc.CurrentName, new Vector2(130f, 0f), new Vector2(440f, 84f), On, () =>
+        {
+            Loc.Toggle();
+            PixelSfx.Play(Sfx.Click, 0.8f, Loc.IsRussian ? 0.9f : 1.1f);
+        });
+        LocText.Bind(button.GetComponentInChildren<TextMeshProUGUI>(), () => Loc.CurrentName, fit: true);
+        ButtonJuice.Ensure(button, true);
     }
 
     public void Close()
