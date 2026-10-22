@@ -12,8 +12,9 @@ namespace CrystalAdventure.EditorTools
     ///
     /// Уровни дописывались в конец списка TilemapData по мере создания, поэтому главы перемешались:
     /// лёгкие черновики (№16–18) стояли в Winter, лесной босс и шипы — тоже, враги — между ними.
-    /// Кнопка ставит уровни по порядку <see cref="Order"/>: Forest (обучение → шипы → враги → лесной босс),
-    /// Winter (лёд и плиты → ледяные пушки → ледяной ромб), Sky (облака, ветер, телепорты → небесный кит).
+    /// Кнопка ставит уровни по порядку <see cref="Order"/> — план на 90 уровней (3 главы по 30, в конце босс):
+    /// Forest (обучение → F1 → циклы → условия → шипы → враги → лесной босс), Winter (лёд, плиты, F2, пушки → ледяной ромб),
+    /// Sky (облака, ветер, порталы → небесный кит). Новые уровни: LevelForest1–7, LevelWinter5–28, LevelSky4–29.
     /// Главу закрывает уровень с боссом (см. LevelChapters), поэтому главы могут быть разной длины.
     ///
     /// Звёзды не теряются: сохранение хранит имя уровня (SaveManager), номер пересчитывается сам.
@@ -22,26 +23,28 @@ namespace CrystalAdventure.EditorTools
     /// </summary>
     public static class LevelOrder
     {
-        /// <summary>Порядок уровней в игре (имена ассетов LevelSt).</summary>
+        /// <summary>Порядок уровней в игре (имена ассетов LevelSt): план на 90 уровней, 3 главы по 30.
+        /// Уровней, которых ещё нет в проекте, кнопка просто пропускает — новые встают на место сами.</summary>
         public static readonly string[] Order =
         {
-            // ── Forest ── обучение по порядку названий, затем шипы, враги и босс
-            "LevelOne", "LevelTwo", "LevelThree", "LevelFourth", "LevelFive", "LevelSix", "LevelSeven",
-            "LevelEight",   // туториал функций
-            "LevelNine",
-            "LevelLoop",    // туториал циклов
-            "LevelIf",      // туториал условий
-            "LevelTen", "LevelEleven", "LevelTwelve", "LevelThirteen", "LevelFourteen", "LevelFifteen", "LevelSixteen",
-            "LevelSpikes1", "LevelSpikes2",
-            "LevelEnemy1", "LevelEnemy2",
-            "LevelBossForest",
-            // ── Winter ──
-            "LevelWinter1", "LevelWinter2", "LevelWinter3", "LevelWinter4",
-            "LevelEnemy3",  // ледяные пушки
-            "LevelBossWinter",
-            // ── Sky ──
-            "LevelSky1", "LevelSky2", "LevelSky3",
-            "LevelBossSky",
+            // ── Forest (30) ──
+            "LevelOne", "LevelTwo", "LevelThree", "LevelFive", "LevelFourth", "LevelSix",
+            "LevelSeven", "LevelThirteen", "LevelEight", "LevelNine", "LevelFourteen", "LevelForest1",
+            "LevelLoop", "LevelForest2", "LevelForest3", "LevelIf", "LevelForest4", "LevelForest5",
+            "LevelTwelve", "LevelFifteen", "LevelTen", "LevelEleven", "LevelSixteen", "LevelSpikes1",
+            "LevelSpikes2", "LevelForest6", "LevelEnemy1", "LevelEnemy2", "LevelForest7", "LevelBossForest",
+            // ── Winter (30) ──
+            "LevelWinter1", "LevelWinter5", "LevelWinter6", "LevelWinter3", "LevelWinter7", "LevelWinter2",
+            "LevelWinter8", "LevelWinter9", "LevelWinter4", "LevelWinter10", "LevelWinter11", "LevelWinter12",
+            "LevelWinter13", "LevelWinter14", "LevelWinter15", "LevelEnemy3", "LevelWinter16", "LevelWinter17",
+            "LevelWinter18", "LevelWinter19", "LevelWinter20", "LevelWinter21", "LevelWinter22", "LevelWinter23",
+            "LevelWinter24", "LevelWinter25", "LevelWinter26", "LevelWinter27", "LevelWinter28", "LevelBossWinter",
+            // ── Sky (30) ──
+            "LevelSky1", "LevelSky4", "LevelSky5", "LevelSky6", "LevelSky7", "LevelSky2",
+            "LevelSky8", "LevelSky9", "LevelSky10", "LevelSky11", "LevelSky3", "LevelSky12",
+            "LevelSky13", "LevelSky14", "LevelSky15", "LevelSky16", "LevelSky17", "LevelSky18",
+            "LevelSky19", "LevelSky20", "LevelSky21", "LevelSky22", "LevelSky23", "LevelSky24",
+            "LevelSky25", "LevelSky26", "LevelSky27", "LevelSky28", "LevelSky29", "LevelBossSky",
         };
 
         [MenuItem("Crystal Adventure/Уровни/Расставить уровни по главам")]
@@ -97,7 +100,8 @@ namespace CrystalAdventure.EditorTools
                 int was = old.IndexOf(sorted[i]);
                 sb.AppendLine($"  №{i + 1,-3} {(sorted[i] != null ? sorted[i].name : "(пусто)")}" + (was != i ? $"   (был №{was + 1})" : ""));
             }
-            foreach (var m in missing) sb.AppendLine($"  ?  {m} — нет в списке уровней игры (пропущен).");
+            if (missing.Count > 0)
+                sb.AppendLine($"  …  Из плана ещё не сделано {missing.Count}: {string.Join(", ", missing)}");
             foreach (var e in extra) sb.AppendLine($"  ?  {(e != null ? e.name : "(пусто)")} — нет в LevelOrder.Order, оставлен в конце. Допиши его имя в нужную главу.");
             Debug.Log("[Crystal] Порядок уровней\n" + sb);
         }
