@@ -63,6 +63,8 @@ public class FinishingLevel : MonoBehaviour
     public float contentRaise = 45f;
     [Tooltip("Высота строки итогов в пикселях рисунка (значки — 7, остальное — воздух вокруг)")]
     public int rowPixels = 10;
+    [Tooltip("Зазор между кристаллами и строками, в пикселях рисунка")]
+    public int rowGapPixels = 4;
 
     [Header("Положение")]
     [Tooltip("На сколько пикселей поднять плашку со звёздами (итоги поднимутся вместе с ней)")]
@@ -468,7 +470,8 @@ public class FinishingLevel : MonoBehaviour
         var starPanel = stars[0].rectTransform.parent as RectTransform;
         if (starPanel == null) return null;
 
-        float panelBottom = BottomIn(self, starPanel);
+        // Строки — под нижним краем самих кристаллов (лента под ними спрятана, её низ ничего не значит).
+        float panelBottom = CrystalsBottom(self, starPanel);
         var next = FindNextButton();
         float floor = next != null ? TopIn(self, (RectTransform)next.transform) : self.rect.yMin + 10f;
 
@@ -477,7 +480,7 @@ public class FinishingLevel : MonoBehaviour
         float gap = u;
         float rowH = Mathf.Max(8, rowPixels) * u;
         float Need(float h) => rowCount * h + (rowCount - 1) * gap + pad * 2f;
-        float margin = resultGap;
+        float margin = rowGapPixels * u; // зазор кристаллы → строки: не впритык и не далеко
         float space = panelBottom - floor - margin * 2f;
         if (space < Need(rowH))
         {
@@ -493,7 +496,7 @@ public class FinishingLevel : MonoBehaviour
         float width = Mathf.Min(resultWidth, self.rect.width - 18f * u);
         width = Mathf.Floor(width / u) * u;
         // Строки — сразу под лентой со звёздами (так кнопка «Дальше» остаётся свободной).
-        float centerY = panelBottom - resultGap - height * 0.5f;
+        float centerY = panelBottom - margin - height * 0.5f;
 
         var go = new GameObject("Results", typeof(RectTransform));
         _spawned.Add(go);
@@ -524,6 +527,24 @@ public class FinishingLevel : MonoBehaviour
         if (starPanel == null) return;
         if (_starPanel != starPanel) { _starPanel = starPanel; _starPanelBase = starPanel.anchoredPosition; }
         starPanel.anchoredPosition = _starPanelBase + new Vector2(0f, panelRaise + contentRaise);
+    }
+
+    /// <summary>Нижний край кристаллов (с учётом их увеличения starScale) в координатах окна.</summary>
+    float CrystalsBottom(RectTransform self, RectTransform starPanel)
+    {
+        float S = Mathf.Max(0.5f, starScale);
+        float bottom = float.MaxValue;
+        if (stars != null)
+            foreach (var st in stars)
+            {
+                if (st == null) continue;
+                var rt = st.rectTransform;
+                Vector3 centerWorld = rt.parent != null ? rt.parent.TransformPoint(rt.localPosition) : rt.position;
+                float cy = self.InverseTransformPoint(centerWorld).y;
+                float b = cy - rt.rect.height * S * (rt.pivot.y);
+                bottom = Mathf.Min(bottom, b);
+            }
+        return bottom < float.MaxValue ? bottom : BottomIn(self, starPanel);
     }
 
     static float BottomIn(RectTransform space, RectTransform child)
