@@ -177,7 +177,11 @@ public class FinishingLevel : MonoBehaviour
         {
             if (stars[i] == null) continue;
             starScale[i] = Vector3.one * S;
-            stars[i].color = emptyStarColor;
+            // Пиксельный кристалл вместо картинки-звезды высокого разрешения; пустой — тёмный силуэт.
+            stars[i].sprite = VictorySprites.Crystal(false);
+            stars[i].preserveAspect = false;
+            PixelSnapUI.SnapNow(stars[i], S);
+            stars[i].color = Color.white;
             stars[i].transform.localScale = Vector3.one * 0.85f * S;
             stars[i].transform.localRotation = Quaternion.identity;
         }
@@ -205,6 +209,7 @@ public class FinishingLevel : MonoBehaviour
             {
                 Play(starSound, Sfx.Star, 1f + i * 0.12f);
                 var rt = star.rectTransform;
+                star.sprite = VictorySprites.Crystal(true);
                 float dir = i % 2 == 0 ? -1f : 1f;
                 yield return Animate(0.4f, k =>
                 {
@@ -219,7 +224,7 @@ public class FinishingLevel : MonoBehaviour
                 star.color = Color.white;
                 _earnedStars.Add(rt);
                 _raysAlpha = 0.25f + 0.2f * (i + 1);
-                PixelFX.BurstUI(rt, PixelFX.StarColors, 14, 300f, 18f, 0.75f);
+                PixelFX.BurstUI(rt, PixelFX.CrystalColors, 14, 300f, 18f, 0.75f);
                 StartCoroutine(Punch(transform, 0.04f, 0.2f));
                 yield return Wait(starInterval);
             }
@@ -288,7 +293,7 @@ public class FinishingLevel : MonoBehaviour
         {
             for (float t = 0f; t < 1.3f; t += Time.unscaledDeltaTime) yield return null;
             var star = _earnedStars[Random.Range(0, _earnedStars.Count)];
-            if (star != null) PixelFX.BurstUI(star, PixelFX.StarColors, 4, 90f, 10f, 0.6f);
+            if (star != null) PixelFX.BurstUI(star, PixelFX.CrystalColors, 4, 90f, 10f, 0.6f);
         }
     }
 
@@ -334,7 +339,7 @@ public class FinishingLevel : MonoBehaviour
             rrt.position = mid.position;
             float size = Mathf.Max(starPanel.rect.height * 4f, 560f);
             rrt.sizeDelta = new Vector2(size, size);
-            _rays.color = new Color(1f, 0.95f, 0.7f, 0f);
+            _rays.color = new Color(1f, 0.88f, 1f, 0f); // сиреневые — под кристаллы
             _raysAlpha = 0f;
         }
     }

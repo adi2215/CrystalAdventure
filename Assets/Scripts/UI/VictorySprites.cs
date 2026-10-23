@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>Пиксельные спрайты окна победы (рисуются кодом, в стиле панели программы).</summary>
 public static class VictorySprites
 {
-    static Sprite _board, _row, _plus, _minus, _socket, _rays;
+    static Sprite _board, _row, _plus, _minus, _socket, _rays, _crystalOn, _crystalOff;
     static readonly Sprite[] _icons = new Sprite[3];
 
     static Color Hex(string h) { ColorUtility.TryParseHtmlString(h, out var c); return c; }
@@ -161,6 +161,48 @@ public static class VictorySprites
                 break;
         }
         return _icons[index] = PixelSprites.Make(rows, Pal);
+    }
+
+    /// <summary>
+    /// Пиксельный кристалл — «звезда» оценки (окно победы, карта уровней, конец главы).
+    /// lit — заработан (сиреневый, как кристаллы на поле), иначе — тёмный силуэт того же рисунка.
+    /// Исправлено: в окне победы звёзды были картинкой 1280×1280, уменьшенной в 10 раз, — не пиксельные.
+    /// </summary>
+    public static Sprite Crystal(bool lit)
+    {
+        if (lit && _crystalOn != null) return _crystalOn;
+        if (!lit && _crystalOff != null) return _crystalOff;
+        string[] rows =
+        {
+            ".....#.....",
+            "....#w#....",
+            "...#wlm#...",
+            "..#wllmm#..",
+            ".#wlllmmd#.",
+            "#wllllmmdd#",
+            "#lllllmmdd#",
+            "#ggggggggg#",
+            "#mmmmmdddd#",
+            ".#mmmmddd#.",
+            "..#mmmdd#..",
+            "...#mdd#...",
+            "....#d#....",
+            ".....#.....",
+        };
+        var pal = lit
+            ? new Dictionary<char, Color>
+            {
+                { '#', PixelSprites.Ink }, { 'w', Color.white }, { 'l', Hex("#F6CEFA") }, { 'm', Hex("#DE96EC") },
+                { 'd', Hex("#AA68CE") }, { 'g', Hex("#FFECFF") },
+            }
+            : new Dictionary<char, Color>
+            {
+                { '#', PixelSprites.Ink }, { 'w', Hex("#6E6A8C") }, { 'l', Hex("#5A5678") }, { 'm', Hex("#464264") },
+                { 'd', Hex("#363250") }, { 'g', Hex("#646082") },
+            };
+        var sprite = PixelSprites.Make(rows, pal);
+        if (lit) _crystalOn = sprite; else _crystalOff = sprite;
+        return sprite;
     }
 
     /// <summary>Тёмное «гнездо» под звездой: круг с контуром, тенью сверху и бликом снизу.</summary>

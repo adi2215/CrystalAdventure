@@ -197,7 +197,7 @@ public static class Loc
         // ── Конец главы и финал (StoryDirector.ChapterComplete, StoryLines.Outros) ──
         { "Chapter complete!", "Глава пройдена!" },
         { "The Ascent is complete!", "Восхождение завершено!" },
-        { "Stars: {0} / {1}", "Звёзды: {0} / {1}" },
+        { "Crystals: {0} / {1}", "Кристаллы: {0} / {1}" },
         { "Thank you for playing!", "Спасибо за игру!" },
         { "We did it, Cris! The Forest Guardian is free again!", "Получилось, Крис! Лесной страж снова свободен!" },
         { "The first shard is ours. Look how it glows!", "Первый осколок наш. Смотри, как он сияет!" },

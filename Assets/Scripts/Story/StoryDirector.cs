@@ -895,7 +895,7 @@ public class StoryDirector : MonoBehaviour
                 if (list[i] != null && LevelChapters.ChapterOf(list, i) == ch) { count++; got += SaveManager.StarsOf(save, list[i].name); }
         var starsRt = NewRect("Stars", _stage);
         Place(starsRt, new Vector2(-380f, 70f), new Vector2(1000f, 90f));
-        var stars = NewText(starsRt, Loc.F("Stars: {0} / {1}", got, count * 3), 54f, TextAlignmentOptions.Center);
+        var stars = NewText(starsRt, Loc.F("Crystals: {0} / {1}", got, count * 3), 54f, TextAlignmentOptions.Center);
         stars.color = Color.white;
 
         yield return Tween(0.5f, k => _black.color = new Color(0f, 0f, 0f, 1f - k), ignoreSkip: true);

@@ -38,6 +38,7 @@ public class PixelSnapUI : MonoBehaviour
         public Sprite sprite;    // исходный спрайт
         public float rel;        // масштаб элемента относительно канваса (при первой встрече)
         public bool slice;       // фон из сцены, растянутый якорями — режем на 9 частей
+        public bool skip;        // размер уже подогнан кодом (SnapNow) — не трогать
     }
 
     readonly Dictionary<int, State> _images = new Dictionary<int, State>();
@@ -124,7 +125,7 @@ public class PixelSnapUI : MonoBehaviour
         if (img == null || img.sprite == null && !_images.ContainsKey(img.GetInstanceID())) return;
         int id = img.GetInstanceID();
         bool known = _images.TryGetValue(id, out var st);
-        if (known && !resized) return;
+        if (known && (!resized || st.skip)) return;
 
         var rt = img.rectTransform;
         var canvas = RootCanvas(img);
@@ -184,6 +185,27 @@ public class PixelSnapUI : MonoBehaviour
         if (!drivenX) size.x = sw * Mathf.Max(1, Mathf.RoundToInt(pxW)) / (s * st.rel);
         if (!drivenY) size.y = sh * Mathf.Max(1, Mathf.RoundToInt(pxH)) / (s * st.rel);
         rt.sizeDelta = size;
+    }
+
+    /// <summary>
+    /// Подогнать картинку с фиксированным размером под целые пиксели сейчас (после смены спрайта кодом).
+    /// Размер берётся близким к нынешней высоте; extraScale — масштаб, который код сам задаёт элементу
+    /// (например, звёзды окна победы крупнее в starScale раз): итоговый пиксель — целый с его учётом.
+    /// </summary>
+    public static void SnapNow(Image img, float extraScale = 1f)
+    {
+        if (img == null || img.sprite == null) return;
+        var rt = img.rectTransform;
+        var canvas = RootCanvas(img);
+        if (canvas == null || rt.parent == null) return;
+        float s = canvas.scaleFactor;
+        float cs = canvas.transform.lossyScale.x;
+        float rel = cs > 0.0001f ? Mathf.Abs(rt.parent.lossyScale.x / cs) * Mathf.Max(0.01f, extraScale) : extraScale;
+        float sw = img.sprite.rect.width, sh = img.sprite.rect.height;
+        int k = Mathf.Max(1, Mathf.RoundToInt(rt.rect.height * rel * s / sh));
+        rt.sizeDelta = new Vector2(sw * k / (s * rel), sh * k / (s * rel));
+        if (_inst != null) _inst._images.Remove(img.GetInstanceID()); // больше не трогать по старому спрайту
+        if (_inst != null) _inst._images[img.GetInstanceID()] = new State { size = rt.sizeDelta, sprite = img.sprite, type = Image.Type.Simple, rel = 1f, skip = true };
     }
 
     /// <summary>

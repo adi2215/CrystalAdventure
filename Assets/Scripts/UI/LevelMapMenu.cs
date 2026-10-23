@@ -293,10 +293,10 @@ public class LevelMapMenu : MonoBehaviour
         var starIcon = NewRect("Icon", starBox);
         starIcon.anchorMin = starIcon.anchorMax = new Vector2(0f, 0.5f);
         starIcon.anchoredPosition = new Vector2(30f, 0f);
-        starIcon.sizeDelta = new Vector2(48f, 48f);
+        starIcon.sizeDelta = new Vector2(33f, 42f); // 11×14 пикселей рисунка × 3
         var si = starIcon.gameObject.AddComponent<Image>();
-        si.sprite = StarSprite();
-        si.color = StarOn;
+        si.sprite = VictorySprites.Crystal(true); // оценка — пиксельные кристаллы, как в окне победы
+        si.color = Color.white;
         var starText = Text(starBox, $"{total} / {count * 3}", 38f, TextAlignmentOptions.MidlineLeft);
         starText.rectTransform.offsetMin = new Vector2(66f, 0f);
 
@@ -412,10 +412,10 @@ public class LevelMapMenu : MonoBehaviour
                 var st = NewRect("Star", node);
                 st.anchorMin = st.anchorMax = new Vector2(0.5f, 0f);
                 st.anchoredPosition = new Vector2((s - 1) * 34f, 26f + (s == 1 ? 6f : 0f));
-                st.sizeDelta = new Vector2(30f, 30f);
+                st.sizeDelta = new Vector2(22f, 28f); // 11×14 пикселей рисунка × 2
                 var si = st.gameObject.AddComponent<Image>();
-                si.sprite = StarSprite();
-                si.color = s < stars ? StarOn : StarOff;
+                si.sprite = VictorySprites.Crystal(s < stars);
+                si.color = Color.white;
                 si.raycastTarget = false;
             }
 
