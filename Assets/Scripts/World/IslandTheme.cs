@@ -58,6 +58,50 @@ public class IslandTheme
         mote = new Color(1.00f, 0.86f, 0.62f, 1f),
     };
 
+    /// <summary>Глава Winter: холодное бледное небо, серо-голубые тучи, рассеянный холодный свет.</summary>
+    public static IslandTheme Winter() => new IslandTheme
+    {
+        name = "Зима",
+        skyTop = new Color32(112, 140, 182, 255),
+        skyMid = new Color32(168, 188, 216, 255),
+        skyHorizon = new Color32(222, 230, 242, 255),
+        sunGlow = new Color32(236, 242, 255, 255),
+        sunGlowStrength = 0.22f,
+        cloudLight = new Color32(236, 240, 248, 255),
+        cloudBase = new Color32(200, 210, 228, 255),
+        cloudShadow = new Color32(146, 160, 190, 255),
+        cloudSeaDeep = new Color32(124, 138, 170, 255),
+        ambient = new Color(0.80f, 0.88f, 1.00f),
+        ambientIntensity = 0.78f,
+        sun = new Color(0.90f, 0.94f, 1.00f),
+        sunIntensity = 0.40f,
+        crystalLight = new Color(0.72f, 0.82f, 1.00f),
+        crystalLightIntensity = 0.85f,
+        mote = new Color(1f, 1f, 1f, 1f),
+    };
+
+    /// <summary>Глава Sky: высоко над облаками — яркое насыщенное небо, белоснежные облака, тёплое солнце.</summary>
+    public static IslandTheme Heavens() => new IslandTheme
+    {
+        name = "Небо",
+        skyTop = new Color32(52, 118, 218, 255),
+        skyMid = new Color32(116, 182, 246, 255),
+        skyHorizon = new Color32(212, 234, 255, 255),
+        sunGlow = new Color32(255, 252, 230, 255),
+        sunGlowStrength = 0.75f,
+        cloudLight = new Color32(255, 255, 255, 255),
+        cloudBase = new Color32(244, 248, 255, 255),
+        cloudShadow = new Color32(202, 218, 246, 255),
+        cloudSeaDeep = new Color32(178, 200, 240, 255),
+        ambient = new Color(0.86f, 0.90f, 1.00f),
+        ambientIntensity = 0.78f,
+        sun = new Color(1.00f, 0.96f, 0.86f),
+        sunIntensity = 0.62f,
+        crystalLight = new Color(0.90f, 0.66f, 1.00f),
+        crystalLightIntensity = 0.7f,
+        mote = new Color(1.00f, 1.00f, 0.92f, 1f),
+    };
+
     public static IslandTheme Night() => new IslandTheme
     {
         name = "Ночь",

@@ -13,6 +13,9 @@ using UnityEngine.SceneManagement;
 ///  • Свет: глобальный свет сцены → холодный рассеянный, сверху слева — тёплое «солнце»
 ///    с картами нормалей (верх и левая грань светлые, правая в тени).
 ///  • Пылинки в воздухе.
+///  • Погода по главе (lookByChapter): Forest — утро; Winter — холодное небо, снегопад и порывы
+///    ветра (снег летит вбок полосками, по экрану проносятся линии ветра, всё слегка белеет);
+///    Sky — яркое небо, вдвое больше облаков, облака чаще проплывают перед камерой и под островом.
 ///
 /// Создаётся сам на сцене с картой (MapManager) — в сцену ничего добавлять не нужно.
 /// Чтобы крутить значения, можно положить этот компонент на любой объект сцены: тогда используется он.
@@ -22,7 +25,8 @@ public class IslandAtmosphere : MonoBehaviour
 {
     public static IslandAtmosphere Instance { get; private set; }
 
-    public enum Look { Morning, Sunset, Night }
+    // Новые значения — только в конец: Look сериализуется числом.
+    public enum Look { Morning, Sunset, Night, Winter, Heavens }
 
     [Header("Вид")]
     public Look look = Look.Morning;
@@ -31,6 +35,15 @@ public class IslandAtmosphere : MonoBehaviour
     [Tooltip("Палитра. Заполняется по «Виду» — можно крутить прямо во время игры (включи «Своя палитра», чтобы не сбрасывалась)")]
     public IslandTheme theme;
     Look _lastLook;
+
+    [Tooltip("Вид и погода по главе текущего уровня: Forest — утро, Winter — метель, Sky — облачное небо")]
+    public bool lookByChapter = true;
+
+    [Header("Метель (глава Winter)")]
+    [Tooltip("Снежинок позади острова и перед ним")] public int snowFlakes = 70;
+    [Tooltip("Порыв ветра — раз в столько секунд (случайно между min и max)")] public Vector2 gustEvery = new Vector2(6f, 12f);
+    [Tooltip("Сколько длится порыв, сек")] public Vector2 gustLength = new Vector2(2.5f, 4f);
+    [Tooltip("Насколько белеет экран в сильный порыв")] [Range(0f, 0.4f)] public float gustWhiteout = 0.12f;
 
     [Header("Остров парит")]
     public bool floating = true;
@@ -84,6 +97,8 @@ public class IslandAtmosphere : MonoBehaviour
         public float phase;
         public float baseAlpha;
         public float scale = 1f;
+        public float stretch = 1f; // растяжение по X (полоски снега и ветра)
+        public float vy;           // своя скорость падения (снег)
     }
 
     class Layer
@@ -101,7 +116,15 @@ public class IslandAtmosphere : MonoBehaviour
     SpriteRenderer _sky;
     readonly List<Layer> _layers = new List<Layer>();
     Layer _far, _near, _seaBack, _seaFront, _front, _motesBack, _motesFront;
+    Layer _snowBack, _snowFront, _streaks, _veil;
     float _nextFront;
+    bool _chapterApplied;
+    float _gust, _gustTarget, _nextGust, _gustEnd;
+
+    bool Snowy => look == Look.Winter;
+    bool Cloudy => look == Look.Heavens;
+    /// <summary>Сила ветра сейчас: 1 — обычный, больше — в порыв (метель).</summary>
+    float WindMul => Snowy ? 1f + 3f * _gust : 1f;
 
     Transform _island;
     Vector3 _islandBase;
@@ -133,7 +156,33 @@ public class IslandAtmosphere : MonoBehaviour
     }
 
     public static IslandTheme Preset(Look l) =>
-        l == Look.Sunset ? IslandTheme.Sunset() : l == Look.Night ? IslandTheme.Night() : IslandTheme.Morning();
+        l == Look.Sunset ? IslandTheme.Sunset() : l == Look.Night ? IslandTheme.Night()
+        : l == Look.Winter ? IslandTheme.Winter() : l == Look.Heavens ? IslandTheme.Heavens() : IslandTheme.Morning();
+
+    /// <summary>Вид для главы: Forest — утро, Winter — зима (метель), Sky — небо.</summary>
+    public static Look ForChapter(int chapter) =>
+        chapter == LevelChapters.Winter ? Look.Winter : chapter == LevelChapters.Sky ? Look.Heavens : Look.Morning;
+
+    /// <summary>Глава текущего уровня (−1 — уровень ещё не загружен).</summary>
+    static int CurrentChapter()
+    {
+        var lvl = TilemapData.CurrentLevel;
+        var list = LevelChapters.CurrentList;
+        if (lvl == null || list == null) return -1;
+        int i = list.IndexOf(lvl);
+        return i < 0 ? -1 : LevelChapters.ChapterOf(list, i);
+    }
+
+    /// <summary>Уровень загружен — поставить вид его главы (один раз; Rebuild, только если вид другой).</summary>
+    void ApplyChapterLook()
+    {
+        if (_chapterApplied || !lookByChapter || customTheme) return;
+        int ch = CurrentChapter();
+        if (ch < 0) return;
+        _chapterApplied = true;
+        var want = ForChapter(ch);
+        if (want != look || !_built) { look = want; _lastLook = want; theme = Preset(want); if (_built) Rebuild(); }
+    }
 
     /// <summary>Сменить вид прямо в игре (например, по главе).</summary>
     public void SetLook(Look l)
@@ -164,6 +213,7 @@ public class IslandAtmosphere : MonoBehaviour
             if (root != null && _cam.transform.root != root) { _island = root; _islandBase = root.position; }
         }
 
+        ApplyChapterLook(); // уровень мог уже загрузиться — тогда сразу строим нужную главу
         Rebuild();
         RenderPipelineManager.beginCameraRendering += OnBeginCamera;
     }
@@ -202,8 +252,10 @@ public class IslandAtmosphere : MonoBehaviour
         _cam.backgroundColor = th.skyHorizon;
 
         // Дальние облака: маленькие, бледные, медленные
+        int far = Cloudy ? farClouds * 2 : farClouds;
+        int near = Cloudy ? nearClouds * 2 : nearClouds;
         _far = AddLayer("FarClouds", 0.96f);
-        for (int i = 0; i < farClouds; i++)
+        for (int i = 0; i < far; i++)
         {
             var sr = MakeRenderer("FarCloud", FarCloudSprite(), -31000);
             var d = AddDrifter(_far, sr, windSpeed * (0.30f + 0.15f * Rand()), 1f);
@@ -212,7 +264,7 @@ public class IslandAtmosphere : MonoBehaviour
 
         // Ближние облака
         _near = AddLayer("NearClouds", 0.88f);
-        for (int i = 0; i < nearClouds; i++)
+        for (int i = 0; i < near; i++)
         {
             var sr = MakeRenderer("NearCloud", NearCloudSprite(), -30000);
             var d = AddDrifter(_near, sr, windSpeed * (0.8f + 0.4f * Rand()), 1f);
@@ -228,17 +280,25 @@ public class IslandAtmosphere : MonoBehaviour
             _seaFront = AddLayer("CloudSeaFront", 0.78f);
             AddSea(_seaFront, 23, th.cloudLight, th.cloudBase, th.cloudShadow, th.cloudSeaDeep,
                    -28900, -0.5f + 0.2f, windSpeed * 1.25f, viewW);
+            if (Cloudy)
+            {
+                // Глава Sky: ещё одна полоса — выше, бледная: облака «до горизонта».
+                var high = AddLayer("CloudSeaHigh", 0.94f);
+                AddSea(high, 37, Tint(th.cloudLight, 0.45f), Tint(th.cloudBase, 0.5f), Tint(th.cloudShadow, 0.5f), Tint(th.cloudSeaDeep, 0.5f),
+                       -29100, -0.5f + 0.46f, windSpeed * 0.35f, viewW);
+            }
         }
 
         // Облако перед камерой (одно, изредка)
         _front = AddLayer("ForegroundCloud", 0.45f);
-        _nextFront = Time.time + 8f + Rand() * 10f;
+        _nextFront = Time.time + (Cloudy ? 3f : 8f) + Rand() * 10f;
 
         // Пылинки: половина позади острова, половина спереди
         var pixel = WorldArt.Pixel();
         _motesBack = AddLayer("MotesBack", 0.9f);
         _motesFront = AddLayer("MotesFront", 0.7f);
-        for (int i = 0; i < motes; i++)
+        int moteCount = Snowy ? 0 : motes; // на Зиме вместо пылинок — снег (пылинки летят вверх, снег вниз)
+        for (int i = 0; i < moteCount; i++)
         {
             bool front = i % 2 == 1;
             var sr = MakeRenderer("Mote", pixel, front ? 8 : -100);
@@ -250,9 +310,105 @@ public class IslandAtmosphere : MonoBehaviour
             if (front && Rand() < 0.4f) d.scale = 2f;
         }
 
+        if (Snowy) BuildSnow(viewW, pixel);
+
         ApplyLight();
         _built = true;
         UpdateLayers();
+    }
+
+    /// <summary>
+    /// Метель: снежинки (1–3 пикселя) позади и перед островом, линии ветра и белая пелена для порывов.
+    /// Снег летит вниз и вбок; в порыв — почти горизонтально и вытягивается в полоски.
+    /// </summary>
+    void BuildSnow(float viewW, Sprite pixel)
+    {
+        _snowBack = AddLayer("SnowBack", 0.92f);
+        _snowFront = AddLayer("SnowFront", 0.6f);
+        for (int i = 0; i < snowFlakes; i++)
+        {
+            bool front = i % 3 == 0; // треть — перед островом, крупнее и быстрее
+            var sr = MakeRenderer("Snow", pixel, front ? 600 : -90);
+            var d = AddDrifter(front ? _snowFront : _snowBack, sr, 0f, front ? 0.9f : Rand(0.45f, 0.8f));
+            d.pos = new Vector2(Rand(-0.55f, 0.55f) * viewW, Rand(-0.55f, 0.55f) * _refViewH);
+            d.scale = front ? (Rand() < 0.5f ? 2f : 3f) : (Rand() < 0.7f ? 1f : 2f);
+            d.speed = (front ? 0.07f : 0.04f) * Rand(0.8f, 1.3f); // ветер вбок
+            d.vy = (front ? 0.16f : 0.09f) * Rand(0.75f, 1.25f);  // падение
+            d.phase = Rand() * 10f;
+            sr.color = new Color(1f, 1f, 1f, d.baseAlpha);
+        }
+
+        // Линии ветра: видны только в порыв.
+        _streaks = AddLayer("WindStreaks", 0.75f);
+        for (int i = 0; i < 7; i++)
+        {
+            var sr = MakeRenderer("WindStreak", pixel, 601);
+            var d = AddDrifter(_streaks, sr, 0f, Rand(0.18f, 0.32f));
+            d.pos = new Vector2(Rand(-0.55f, 0.55f) * viewW, Rand(-0.45f, 0.45f) * _refViewH);
+            d.scale = 1f;
+            d.stretch = Rand(18f, 40f);
+            d.speed = Rand(0.9f, 1.4f);
+            sr.color = new Color(1f, 1f, 1f, 0f);
+        }
+
+        // Белая пелена на весь экран (пиксель, растянутый с запасом).
+        _veil = AddLayer("SnowVeil", 1f);
+        var veil = MakeRenderer("SnowVeil", pixel, 602);
+        var v = AddDrifter(_veil, veil, 0f, 0f);
+        v.scale = Mathf.Max(viewW, _refViewH) * 1.4f * WorldArt.PPU;
+        veil.color = new Color(1f, 1f, 1f, 0f);
+
+        _gust = _gustTarget = 0f;
+        _nextGust = Time.time + Rand(2f, 5f);
+    }
+
+    /// <summary>Порывы ветра: раз в gustEvery сек ветер усиливается на gustLength сек.</summary>
+    void UpdateGust(float dt)
+    {
+        if (!Snowy) { _gust = 0f; return; }
+        float now = Time.time;
+        if (_gustTarget <= 0f && now >= _nextGust)
+        {
+            _gustTarget = Rand(0.7f, 1f);
+            _gustEnd = now + Rand(gustLength.x, gustLength.y);
+        }
+        else if (_gustTarget > 0f && now >= _gustEnd)
+        {
+            _gustTarget = 0f;
+            _nextGust = now + Rand(gustEvery.x, gustEvery.y);
+        }
+        // Нарастает быстрее, чем стихает.
+        _gust = Mathf.MoveTowards(_gust, _gustTarget, dt / (_gustTarget > _gust ? 0.7f : 1.6f));
+    }
+
+    void DriftSnow(float dt, float viewW, float t)
+    {
+        float wind = WindMul;
+        foreach (var layer in new[] { _snowBack, _snowFront })
+        {
+            if (layer == null) continue;
+            foreach (var d in layer.items)
+            {
+                if (d.sr == null) continue;
+                float sway = Mathf.Sin(t * 1.3f + d.phase) * 0.012f * (1f - _gust);
+                d.pos.x -= (d.speed * wind + sway) * dt;
+                d.pos.y -= d.vy * (1f - 0.45f * _gust) * dt;
+                d.stretch = 1f + 2.5f * _gust; // в порыв снежинка — полоска
+                if (d.pos.y < -_refViewH * 0.56f) { d.pos.y = _refViewH * 0.56f; d.pos.x = Rand(-0.55f, 0.75f) * viewW; }
+                if (d.pos.x < -viewW * 0.56f) { d.pos.x += viewW * 1.12f; d.pos.y = Rand(-0.55f, 0.55f) * _refViewH; }
+            }
+        }
+        if (_streaks != null)
+            foreach (var d in _streaks.items)
+            {
+                if (d.sr == null) continue;
+                d.pos.x -= d.speed * (0.4f + _gust) * dt;
+                float halfLen = d.stretch * d.scale / WorldArt.PPU * 0.5f;
+                if (d.pos.x < -viewW * 0.55f - halfLen) { d.pos.x = viewW * 0.55f + halfLen + Rand(0f, 0.3f) * viewW; d.pos.y = Rand(-0.45f, 0.45f) * _refViewH; }
+                d.sr.color = new Color(1f, 1f, 1f, d.baseAlpha * Mathf.SmoothStep(0f, 1f, _gust));
+            }
+        if (_veil != null && _veil.items.Count > 0 && _veil.items[0].sr != null)
+            _veil.items[0].sr.color = new Color(0.94f, 0.96f, 1f, 0.03f + gustWhiteout * _gust);
     }
 
     Sprite FarCloudSprite()
@@ -362,8 +518,10 @@ public class IslandAtmosphere : MonoBehaviour
 
     void Update()
     {
+        if (!_chapterApplied) ApplyChapterLook();
         if (!_built) return;
         Float();
+        UpdateGust(Time.deltaTime);
         Drift(Time.deltaTime);
     }
 
@@ -413,6 +571,7 @@ public class IslandAtmosphere : MonoBehaviour
 
         foreach (var layer in _layers)
         {
+            if (layer == _snowBack || layer == _snowFront || layer == _streaks || layer == _veil) continue;
             bool motesLayer = layer == _motesBack || layer == _motesFront;
             for (int i = 0; i < layer.items.Count; i++)
             {
@@ -430,7 +589,7 @@ public class IslandAtmosphere : MonoBehaviour
                     continue;
                 }
 
-                d.pos.x -= d.speed * dt;
+                d.pos.x -= d.speed * WindMul * dt;
                 // у полос моря пивот слева (pos.x — левый край), у облаков — по центру
                 float rightEdge = d.phase < 0f ? d.pos.x + d.halfWidth * 2f : d.pos.x + d.halfWidth;
                 if (rightEdge < -viewW * 0.5f - 0.1f)
@@ -459,9 +618,11 @@ public class IslandAtmosphere : MonoBehaviour
 
         if (foregroundClouds && Time.time >= _nextFront)
         {
-            _nextFront = Time.time + 22f + Rand() * 18f;
+            _nextFront = Time.time + (Cloudy ? 10f + Rand() * 8f : 22f + Rand() * 18f);
             SpawnForeground(viewW);
         }
+
+        if (Snowy) DriftSnow(dt, viewW, t);
     }
 
     void SpawnForeground(float viewW)
@@ -470,7 +631,7 @@ public class IslandAtmosphere : MonoBehaviour
         foreach (var o in _front.items) if (o.sr != null && !o.sr.gameObject.activeSelf) { d = o; break; }
         if (d == null)
         {
-            if (_front.items.Count >= 2) return;
+            if (_front.items.Count >= (Cloudy ? 3 : 2)) return;
             var sr = MakeRenderer("ForegroundCloud", null, 9);
             d = AddDrifter(_front, sr, 0f, 0.22f);
         }
@@ -512,7 +673,7 @@ public class IslandAtmosphere : MonoBehaviour
                 if (d.sr == null) continue;
                 var p = new Vector2(cam.x, cam.y) + d.pos * zoom + parallax;
                 d.sr.transform.position = new Vector3(p.x, p.y, z);
-                d.sr.transform.localScale = Vector3.one * d.scale * zoom;
+                d.sr.transform.localScale = new Vector3(d.scale * d.stretch, d.scale, 1f) * zoom;
             }
         }
     }
