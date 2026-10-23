@@ -23,6 +23,13 @@ public class CommandDock : MonoBehaviour
 {
     public static bool Enabled = true;
 
+    /// <summary>
+    /// Насколько область кнопок шире прежнего ряда (Scroll View), в единицах канваса: слева, справа, снизу, сверху.
+    /// Полоса прокрутки спрятана, поэтому место под ней и по бокам до рамки консоли свободно
+    /// (рамка консоли — 5 пикселей рисунка ≈ 43 единицы по бокам и 50 сверху; ряд слотов начинается на 17 ниже ряда).
+    /// </summary>
+    public static Vector4 Grow = new Vector4(10f, 10f, 10f, 10f);
+
     const float ArtPixel = 6f;     // пиксель гнёзд — как у рамки консоли
     const float ButtonArt = 13f;   // кнопки команд нарисованы 13×13 пикселей
 
@@ -67,7 +74,24 @@ public class CommandDock : MonoBehaviour
     void Start()
     {
         if (_scroll == null) { enabled = false; return; }
-        _area = _scroll.viewport != null ? _scroll.viewport : (RectTransform)_scroll.transform;
+        // Исправлено: область — сам Scroll View, а не Viewport. У Main в сцене Viewport нулевого размера
+        // (его растягивал ScrollRect при раскладке, а мы выключаем ScrollRect раньше первой раскладки),
+        // поэтому кнопки Main ставились в точку и обрезались маской — на панели ничего не было видно.
+        _area = (RectTransform)_scroll.transform;
+        var viewport = _scroll.viewport;
+        if (viewport != null)
+        {
+            viewport.anchorMin = Vector2.zero; viewport.anchorMax = Vector2.one;
+            viewport.sizeDelta = Vector2.zero; viewport.anchoredPosition = Vector2.zero;
+            // Ряд больше не листается — маска не нужна, а кнопки могут выходить за прежний ряд (см. Grow).
+            var mask = viewport.GetComponent<Mask>();
+            if (mask != null) mask.enabled = false;
+            var rectMask = viewport.GetComponent<RectMask2D>();
+            if (rectMask != null) rectMask.enabled = false;
+        }
+        // Полупрозрачная скруглённая подложка ряда не совпадает с новой раскладкой — пустые места показывают гнёзда.
+        var tray = _scroll.GetComponent<Image>();
+        if (tray != null) tray.enabled = false;
 
         // Ряд больше не листается: выключаем раскладку ряда, прокрутку, полосу и стрелки ◄ ►.
         var layout = GetComponent<HorizontalOrVerticalLayoutGroup>();
@@ -79,6 +103,9 @@ public class CommandDock : MonoBehaviour
         _scroll.StopMovement();
         if (_scroll.content != null) _scroll.content.anchoredPosition = Vector2.zero;
         _scroll.enabled = false;
+        // Туториал докручивает ряд к нужной кнопке через normalizedPosition — это сдвинуло бы разложенные кнопки.
+        _scroll.horizontal = false;
+        _scroll.vertical = false;
         HideArrows(_scroll.transform);
         if (_scroll.transform.parent != null) HideArrows(_scroll.transform.parent);
     }
@@ -99,7 +126,7 @@ public class CommandDock : MonoBehaviour
         // Исправлено: панель Main видна с первого кадра, когда раскладка интерфейса ещё не посчитана —
         // область была нулевой, кнопки получались крошечными и больше не пересчитывались.
         // Теперь ждём настоящий размер области и пересобираем, если он изменился.
-        var size = _area.rect.size;
+        var size = AreaRect().size;
         if (size.x < 1f || size.y < 1f) return;
         // Консоль может появляться с анимацией масштаба (от 0): тогда размер кнопки в пикселях экрана
         // считался бы по почти нулевому масштабу и кнопки улетали за маску. Ждём нормальный масштаб
@@ -131,9 +158,9 @@ public class CommandDock : MonoBehaviour
         var canvas = GetComponentInParent<Canvas>();
         float sf = canvas != null && canvas.rootCanvas.scaleFactor > 0.0001f ? canvas.rootCanvas.scaleFactor : 1f;
         float areaScale = Mathf.Max(0.0001f, AreaScale());
-        var rect = _area.rect;
+        var rect = AreaRect();
         int rightCols = Mathf.Max(Specials.Length, paints.Count);
-        float gap = rect.height * 0.06f, spacer = gap * 3f;
+        float gap = rect.height * 0.045f, spacer = gap * 1.5f;
         float cell = Mathf.Min((rect.height - gap) / 2f, (rect.width - spacer - gap * (rightCols)) / (2 + rightCols));
         // Кнопка — целое число пикселей экрана на пиксель рисунка 13×13.
         int k = Mathf.Max(1, Mathf.FloorToInt(cell * areaScale * sf / ButtonArt));
@@ -164,6 +191,13 @@ public class CommandDock : MonoBehaviour
             if (!kv.Value.gameObject.activeSelf) continue;
             Place(kv.Value, CellCenter(extra++, 1, true), cell);
         }
+    }
+
+    /// <summary>Область раскладки: прежний ряд, расширенный на Grow (в локальных координатах Scroll View).</summary>
+    Rect AreaRect()
+    {
+        var r = _area.rect;
+        return Rect.MinMaxRect(r.xMin - Grow.x, r.yMin - Grow.z, r.xMax + Grow.y, r.yMax + Grow.w);
     }
 
     /// <summary>Масштаб области относительно корневого канваса (1 — без анимаций и вложенных масштабов).</summary>
