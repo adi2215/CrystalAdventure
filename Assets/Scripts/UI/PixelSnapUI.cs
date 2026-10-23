@@ -187,6 +187,13 @@ public class PixelSnapUI : MonoBehaviour
         rt.sizeDelta = size;
     }
 
+    /// <summary>Эту картинку оформляет другой код (свой спрайт и пиксель) — не трогать.</summary>
+    public static void Exclude(Image img)
+    {
+        if (img == null || _inst == null) return;
+        _inst._images[img.GetInstanceID()] = new State { sprite = img.sprite, type = img.type, rel = 1f, skip = true };
+    }
+
     /// <summary>
     /// Подогнать картинку с фиксированным размером под целые пиксели сейчас (после смены спрайта кодом).
     /// Размер берётся близким к нынешней высоте; extraScale — масштаб, который код сам задаёт элементу

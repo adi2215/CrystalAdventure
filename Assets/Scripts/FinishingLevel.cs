@@ -65,6 +65,9 @@ public class FinishingLevel : MonoBehaviour
     public int rowPixels = 10;
     [Tooltip("Зазор между кристаллами и строками, в пикселях рисунка")]
     public int rowGapPixels = 4;
+    [Tooltip("Победа прямо в консоли: слоты и команды прячутся, нижние кнопки остаются (▶ становится «Дальше»), " +
+             "кристаллы и строки появляются на их месте. Выключено — прежнее отдельное окно поверх консоли")]
+    public bool mergeWithConsole = true;
 
     [Header("Положение")]
     [Tooltip("На сколько пикселей поднять плашку со звёздами (итоги поднимутся вместе с ней)")]
@@ -141,6 +144,7 @@ public class FinishingLevel : MonoBehaviour
         if (stars != null)
             foreach (var st in stars) if (st != null) st.transform.localScale = Vector3.one;
         foreach (var kv in _starHome) if (kv.Key != null) kv.Key.anchoredPosition = kv.Value;
+        RestoreConsole();
     }
 
     void Update()
@@ -175,6 +179,8 @@ public class FinishingLevel : MonoBehaviour
 
     IEnumerator Sequence(int starCount, List<Row> rows)
     {
+        // Победа в консоли: прячем слоты и команды (с эффектом), рамку окна убираем — видна консоль.
+        float hideTime = MergeIntoConsole();
         RaisePanel();
         var next = FindNextButton();
         var nextJuice = next != null ? next.GetComponent<ButtonJuice>() : null;
@@ -205,6 +211,9 @@ public class FinishingLevel : MonoBehaviour
             stars[i].transform.localScale = Vector3.one * 0.85f * S;
             stars[i].transform.localRotation = Quaternion.identity;
         }
+
+        if (hideTime > 0f) yield return Wait(hideTime);
+        BuildCrystalPlate();
 
         // 1. Окно выпрыгивает
         PixelSfx.Play(Sfx.Open, 0.8f);
@@ -590,6 +599,178 @@ public class FinishingLevel : MonoBehaviour
             yield return null;
         }
         if (flash != null) Destroy(flash.gameObject);
+    }
+
+    // ───────────────────────────── победа в консоли ─────────────────────────────
+
+    // Что спрятали / поменяли — чтобы вернуть как было (OnDisable).
+    readonly List<GameObject> _hiddenConsole = new List<GameObject>();
+    readonly List<Image> _hiddenFrames = new List<Image>();
+    RectTransform _movedNext;
+    Vector2 _nextAnchorMin, _nextAnchorMax, _nextPivot, _nextPos, _nextSize;
+    Sprite _nextSprite;
+    Button _replay;
+    Button.ButtonClickedEvent _replayOriginal;
+    static readonly HashSet<string> ConsoleKeep = new HashSet<string> { "Play", "Reverse", "Rewind", "HintButton" };
+
+    /// <summary>
+    /// Идея автора: не отдельное окно победы, а сама консоль. Её слоты и ряд команд «схлопываются»
+    /// ступеньками (с искрами), нижние кнопки остаются: на месте ▶ встаёт кнопка «Дальше» (тот же рисунок,
+    /// что у ▶), кнопка справа — как была. Рамка окна победы прячется, чтобы была видна консоль.
+    /// Возвращает, сколько ждать, пока всё спрячется.
+    /// </summary>
+    float MergeIntoConsole()
+    {
+        if (!mergeWithConsole) return 0f;
+        var finishPanel = transform.parent;
+        var pc = FindObjectOfType<PanelController>();
+        if (pc == null || pc.panels == null || finishPanel == null) return 0f;
+
+        GameObject console = null;
+        foreach (var p in pc.panels)
+            if (p != null && p.activeInHierarchy && p.transform != finishPanel) { console = p; break; }
+        if (console == null) return 0f;
+        var play = FindDeep(console.transform, "Play") as RectTransform;
+        if (play == null) return 0f;
+
+        // Рамка окна победы — прочь (под ней та же консоль).
+        foreach (var img in new[] { finishPanel.GetComponent<Image>(), GetComponent<Image>() })
+            if (img != null && img.enabled) { img.enabled = false; _hiddenFrames.Add(img); }
+
+        // Слоты, ряд команд, полоса прокрутки — «схлопываются» по очереди.
+        float delay = 0f;
+        foreach (Transform child in play.parent)
+        {
+            if (!child.gameObject.activeSelf || ConsoleKeep.Contains(child.name)) continue;
+            _hiddenConsole.Add(child.gameObject);
+            StartCoroutine(Collapse(child, delay));
+            delay += 0.07f;
+        }
+        // Rewind стоит там же, где ▶ — его место займёт «Дальше».
+        var rewind = play.parent.Find("Rewind");
+        if (rewind != null && rewind.gameObject.activeSelf) { rewind.gameObject.SetActive(false); _hiddenConsole.Add(rewind.gameObject); }
+
+        // Кнопка справа (очистить программу) на экране победы — «Сыграть уровень ещё раз»:
+        // иначе она сбросила бы уровень под открытым окном победы.
+        var reverse = play.parent.Find("Reverse");
+        _replay = reverse != null ? reverse.GetComponent<Button>() : null;
+        if (_replay != null)
+        {
+            _replayOriginal = _replay.onClick;
+            _replay.onClick = new Button.ButtonClickedEvent();
+            _replay.onClick.AddListener(() =>
+            {
+                var loader = FindObjectOfType<Levelloader>();
+                if (loader != null) loader.LoadNextLeve(-1); // -1 — перезапуск текущего уровня
+            });
+        }
+
+        // «Дальше» — на место ▶ и с его рисунком: нижний ряд кнопок как был.
+        var next = FindNextButton();
+        if (next != null)
+        {
+            var nrt = (RectTransform)next.transform;
+            _movedNext = nrt;
+            _nextAnchorMin = nrt.anchorMin; _nextAnchorMax = nrt.anchorMax; _nextPivot = nrt.pivot;
+            _nextPos = nrt.anchoredPosition; _nextSize = nrt.sizeDelta;
+            var c = new Vector3[4];
+            play.GetWorldCorners(c);
+            nrt.anchorMin = nrt.anchorMax = nrt.pivot = new Vector2(0.5f, 0.5f);
+            var ps = nrt.parent != null ? nrt.parent.lossyScale : Vector3.one;
+            nrt.sizeDelta = new Vector2((c[2].x - c[0].x) / Mathf.Max(0.0001f, ps.x), (c[2].y - c[0].y) / Mathf.Max(0.0001f, ps.y));
+            nrt.position = (c[0] + c[2]) * 0.5f;
+            var nimg = next.GetComponent<Image>();
+            var pimg = play.GetComponent<Image>();
+            if (nimg != null && pimg != null && pimg.sprite != null)
+            {
+                _nextSprite = nimg.sprite;
+                nimg.sprite = pimg.sprite;
+                nimg.type = pimg.type;
+                nimg.pixelsPerUnitMultiplier = pimg.pixelsPerUnitMultiplier;
+            }
+        }
+        return delay + 0.25f;
+    }
+
+    /// <summary>Элемент консоли схлопывается по высоте ступеньками и исчезает с искрами.</summary>
+    IEnumerator Collapse(Transform t, float delay)
+    {
+        for (float w = 0f; w < delay; w += Time.unscaledDeltaTime) yield return null;
+        if (t == null) yield break;
+        PixelSfx.Play(Sfx.Remove, 0.4f, 1.1f);
+        if (t is RectTransform rt) PixelFX.BurstUI(rt, new[] { Color.white, new Color(0.72f, 0.7f, 0.95f, 1f) }, 8, 160f, 12f, 0.45f);
+        Vector3 baseScale = t.localScale;
+        for (float k = 0f; k < 1f; k += Time.unscaledDeltaTime / 0.2f)
+        {
+            float q = 1f - Mathf.Ceil(k * 4f) / 4f; // 4 ступеньки
+            t.localScale = new Vector3(baseScale.x * (0.6f + 0.4f * q), baseScale.y * q, baseScale.z);
+            yield return null;
+        }
+        t.localScale = baseScale;
+        t.gameObject.SetActive(false);
+    }
+
+    void RestoreConsole()
+    {
+        foreach (var go in _hiddenConsole) if (go != null) go.SetActive(true);
+        _hiddenConsole.Clear();
+        foreach (var img in _hiddenFrames) if (img != null) img.enabled = true;
+        if (_replay != null && _replayOriginal != null) _replay.onClick = _replayOriginal;
+        _replay = null;
+        _replayOriginal = null;
+        _hiddenFrames.Clear();
+        if (_movedNext != null)
+        {
+            _movedNext.anchorMin = _nextAnchorMin; _movedNext.anchorMax = _nextAnchorMax; _movedNext.pivot = _nextPivot;
+            _movedNext.sizeDelta = _nextSize; _movedNext.anchoredPosition = _nextPos;
+            var nimg = _movedNext.GetComponent<Image>();
+            if (nimg != null && _nextSprite != null) nimg.sprite = _nextSprite;
+            _movedNext = null;
+            _nextSprite = null;
+        }
+    }
+
+    /// <summary>Тёмная плашка в стиле консоли под тремя кристаллами (чтобы они не висели в пустоте).</summary>
+    void BuildCrystalPlate()
+    {
+        if (stars == null || stars.Length == 0 || stars[0] == null) return;
+        var panel = stars[0].rectTransform.parent as RectTransform;
+        if (panel == null) return;
+        float S = Mathf.Max(0.5f, starScale);
+        float u = ArtUnit() / ParentScale(stars[0].rectTransform);
+        float minX = float.MaxValue, maxX = float.MinValue, minY = float.MaxValue, maxY = float.MinValue;
+        foreach (var st in stars)
+        {
+            if (st == null) continue;
+            var rt = st.rectTransform;
+            var p = rt.anchoredPosition;
+            float w = rt.rect.width * S, h = rt.rect.height * S;
+            minX = Mathf.Min(minX, p.x - w * rt.pivot.x); maxX = Mathf.Max(maxX, p.x + w * (1f - rt.pivot.x));
+            minY = Mathf.Min(minY, p.y - h * rt.pivot.y); maxY = Mathf.Max(maxY, p.y + h * (1f - rt.pivot.y));
+        }
+        if (minX > maxX) return;
+        float pad = 3f * u;
+        var plate = NewImage("CrystalPlate", panel, VictorySprites.Board);
+        plate.type = Image.Type.Sliced;
+        plate.pixelsPerUnitMultiplier = 1f / u;
+        var prt = plate.rectTransform;
+        var a = stars[0].rectTransform;
+        prt.anchorMin = a.anchorMin; prt.anchorMax = a.anchorMax; prt.pivot = new Vector2(0.5f, 0.5f);
+        float width = Mathf.Ceil((maxX - minX + pad * 2f) / u) * u, height = Mathf.Ceil((maxY - minY + pad * 2f) / u) * u;
+        prt.sizeDelta = new Vector2(width, height);
+        prt.anchoredPosition = new Vector2((minX + maxX) * 0.5f, (minY + maxY) * 0.5f);
+        prt.SetAsFirstSibling(); // под кристаллами
+    }
+
+    static Transform FindDeep(Transform root, string name)
+    {
+        if (root.name == name) return root;
+        foreach (Transform c in root)
+        {
+            var f = FindDeep(c, name);
+            if (f != null) return f;
+        }
+        return null;
     }
 
     // ───────────────────────────── пиксели ─────────────────────────────
