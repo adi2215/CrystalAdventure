@@ -649,30 +649,53 @@ public class CharacterCode : MonoBehaviour
         else yield return WindPush(target);
     }
 
-    /// <summary>Ветер сдувает куб на соседнюю клетку: ровно, без прыжка, с белыми полосками ветра.</summary>
+    /// <summary>
+    /// Порыв ветра — своя анимация, не похожая на скольжение по льду: поток воздуха подхватывает куб
+    /// (присел, вокруг взлетают завитки), подбрасывает вверх, на лету куб делает оборот вокруг себя и
+    /// по дуге переносится на соседнюю клетку, где плюхается с облачком воздуха.
+    /// Исправлено (по отзыву автора): раньше куб просто ехал по прямой с наклоном — выглядело как лёд.
+    /// </summary>
     IEnumerator WindPush(OverlayTile target)
     {
         RaiseOrderFor(target);
         Vector3 start = transform.localPosition;
         Vector3 end = ToLocal(TopOf(target));
-        PixelSfx.Play(Sfx.Whoosh, 0.6f, 1.4f);
-        float lean = end.x >= start.x ? -8f : 8f;
-        float nextStreak = 0f;
-        for (float t = 0f; t < 1f; t += Time.deltaTime / 0.28f)
+        float dir = end.x >= start.x ? -1f : 1f; // крутится «по ветру»
+        int layer = order != null ? order.sortingLayerID : 0, sort = order != null ? order.sortingOrder + 1 : 0;
+
+        // 1) Подхватило: присел, из-под куба поднимаются завитки воздуха.
+        PixelSfx.Play(Sfx.Whoosh, 0.7f, 1.25f);
+        Squash(-0.22f);
+        PixelFX.Burst(transform.position, WindStreaks, 8, 0.25f, 0.55f, -0.2f, layer, sort, PixelFX.Dot, 0.8f, 0.45f);
+        yield return new WaitForSeconds(0.07f);
+
+        // 2) Подбросило и понесло по дуге, с оборотом в воздухе.
+        Squash(0.35f);
+        const float time = 0.46f, lift = 0.24f;
+        float nextPuff = 0f;
+        for (float t = 0f; t < 1f; t += Time.deltaTime / time)
         {
             float k = Mathf.SmoothStep(0f, 1f, t);
-            transform.localPosition = Vector3.Lerp(start, end, k);
-            transform.rotation = Quaternion.Euler(0f, 0f, lean * Mathf.Sin(t * Mathf.PI));
-            if (t >= nextStreak && order != null)
+            float h = lift * Mathf.Sin(t * Mathf.PI) + 0.012f * Mathf.Sin(t * Mathf.PI * 6f) * (1f - t);
+            transform.localPosition = Vector3.Lerp(start, end, k) + Vector3.up * h;
+            AirHeight = h;
+            float spin = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.1f, 0.85f, t)) * 360f;
+            transform.rotation = Quaternion.Euler(0f, 0f, dir * spin);
+            if (t >= nextPuff)
             {
-                nextStreak += 0.3f;
-                PixelFX.Burst(transform.position + Vector3.up * 0.1f, WindStreaks, 3, 0.35f, 0.02f, 0.2f,
-                              order.sortingLayerID, order.sortingOrder + 1, PixelFX.Dot, 0.7f, 0.3f);
+                nextPuff += 0.2f;
+                PixelFX.Burst(transform.position, WindStreaks, 3, 0.3f, 0.05f, 0f, layer, sort, PixelFX.Dot, 0.7f, 0.35f);
             }
             yield return null;
         }
         transform.localPosition = end;
         transform.rotation = Quaternion.identity;
+        AirHeight = 0f;
+
+        // 3) Плюхнулся: сплющился, облачко воздуха в стороны.
+        Squash(-0.3f);
+        PixelSfx.Play(Sfx.Land, 0.6f, 1.2f);
+        PixelFX.Burst(transform.position + Vector3.up * 0.02f, WindStreaks, 10, 0.5f, 0.04f, 0f, layer, sort, PixelFX.Dot, 0.9f, 0.4f);
         PositionCharacterOnLine(target, collect: true);
     }
 
