@@ -36,6 +36,8 @@ public class CommandDock : MonoBehaviour
     readonly List<Image> _sockets = new List<Image>();
     string _signature;
     int _w, _h;
+    Vector2 _areaSize;
+    float _areaScale;
     static Sprite _socketSprite;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -94,12 +96,23 @@ public class CommandDock : MonoBehaviour
     void LateUpdate()
     {
         if (_area == null) return;
-        // Пересобрать, только если изменился набор видимых кнопок или размер экрана.
+        // Исправлено: панель Main видна с первого кадра, когда раскладка интерфейса ещё не посчитана —
+        // область была нулевой, кнопки получались крошечными и больше не пересчитывались.
+        // Теперь ждём настоящий размер области и пересобираем, если он изменился.
+        var size = _area.rect.size;
+        if (size.x < 1f || size.y < 1f) return;
+        // Консоль может появляться с анимацией масштаба (от 0): тогда размер кнопки в пикселях экрана
+        // считался бы по почти нулевому масштабу и кнопки улетали за маску. Ждём нормальный масштаб
+        // и пересобираем, когда он меняется.
+        float scale = AreaScale();
+        if (scale < 0.05f) return;
+        bool sizeChanged = (size - _areaSize).sqrMagnitude > 0.25f || Mathf.Abs(scale - _areaScale) > 0.005f;
+        // Пересобрать, только если изменился набор видимых кнопок, размер области или экрана.
         var sb = new StringBuilder();
         foreach (Transform t in transform) if (!t.name.StartsWith("DockSocket")) sb.Append(t.name).Append(t.gameObject.activeSelf ? '+' : '-');
         string sig = sb.ToString();
-        if (sig == _signature && Screen.width == _w && Screen.height == _h) return;
-        _signature = sig; _w = Screen.width; _h = Screen.height;
+        if (sig == _signature && !sizeChanged && Screen.width == _w && Screen.height == _h) return;
+        _signature = sig; _w = Screen.width; _h = Screen.height; _areaSize = size; _areaScale = scale;
         Layout();
     }
 
@@ -117,7 +130,7 @@ public class CommandDock : MonoBehaviour
         // Размер клетки: два ряда по высоте области; по ширине — компас (2) + промежуток + правый блок.
         var canvas = GetComponentInParent<Canvas>();
         float sf = canvas != null && canvas.rootCanvas.scaleFactor > 0.0001f ? canvas.rootCanvas.scaleFactor : 1f;
-        float areaScale = Mathf.Max(0.0001f, _area.lossyScale.x / (canvas != null ? canvas.rootCanvas.transform.lossyScale.x : 1f));
+        float areaScale = Mathf.Max(0.0001f, AreaScale());
         var rect = _area.rect;
         int rightCols = Mathf.Max(Specials.Length, paints.Count);
         float gap = rect.height * 0.06f, spacer = gap * 3f;
@@ -151,6 +164,15 @@ public class CommandDock : MonoBehaviour
             if (!kv.Value.gameObject.activeSelf) continue;
             Place(kv.Value, CellCenter(extra++, 1, true), cell);
         }
+    }
+
+    /// <summary>Масштаб области относительно корневого канваса (1 — без анимаций и вложенных масштабов).</summary>
+    float AreaScale()
+    {
+        var canvas = GetComponentInParent<Canvas>();
+        float root = canvas != null ? canvas.rootCanvas.transform.lossyScale.x : 1f;
+        if (Mathf.Abs(root) < 0.000001f) return 0f;
+        return Mathf.Abs(_area.lossyScale.x / root);
     }
 
     /// <summary>Кнопка на своё место; если её нет на уровне — тёмное гнездо.</summary>
