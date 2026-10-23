@@ -28,7 +28,7 @@ public class CommandDock : MonoBehaviour
     /// Полоса прокрутки спрятана, поэтому место под ней и по бокам до рамки консоли свободно
     /// (рамка консоли — 5 пикселей рисунка ≈ 43 единицы по бокам и 50 сверху; ряд слотов начинается на 17 ниже ряда).
     /// </summary>
-    public static Vector4 Grow = new Vector4(10f, 10f, 10f, 10f);
+    public static Vector4 Grow = new Vector4(10f, 10f, 16f, 14f);
 
     const float ArtPixel = 6f;     // пиксель гнёзд — как у рамки консоли
     const float ButtonArt = 13f;   // кнопки команд нарисованы 13×13 пикселей
@@ -41,11 +41,12 @@ public class CommandDock : MonoBehaviour
     ScrollRect _scroll;
     RectTransform _area;
     readonly List<Image> _sockets = new List<Image>();
+    Image _tray, _divider;
     string _signature;
     int _w, _h;
     Vector2 _areaSize;
     float _areaScale;
-    static Sprite _socketSprite;
+    static Sprite _socketSprite, _traySprite, _dividerSprite;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Boot()
@@ -136,7 +137,7 @@ public class CommandDock : MonoBehaviour
         bool sizeChanged = (size - _areaSize).sqrMagnitude > 0.25f || Mathf.Abs(scale - _areaScale) > 0.005f;
         // Пересобрать, только если изменился набор видимых кнопок, размер области или экрана.
         var sb = new StringBuilder();
-        foreach (Transform t in transform) if (!t.name.StartsWith("DockSocket")) sb.Append(t.name).Append(t.gameObject.activeSelf ? '+' : '-');
+        foreach (Transform t in transform) if (!t.name.StartsWith("Dock")) sb.Append(t.name).Append(t.gameObject.activeSelf ? '+' : '-');
         string sig = sb.ToString();
         if (sig == _signature && !sizeChanged && Screen.width == _w && Screen.height == _h) return;
         _signature = sig; _w = Screen.width; _h = Screen.height; _areaSize = size; _areaScale = scale;
@@ -147,7 +148,7 @@ public class CommandDock : MonoBehaviour
     {
         var buttons = new Dictionary<string, RectTransform>();
         foreach (Transform t in transform)
-            if (!t.name.StartsWith("DockSocket")) buttons[t.name] = (RectTransform)t;
+            if (!t.name.StartsWith("Dock")) buttons[t.name] = (RectTransform)t;
 
         var paints = new List<RectTransform>();
         foreach (var n in Paints)
@@ -160,11 +161,17 @@ public class CommandDock : MonoBehaviour
         float areaScale = Mathf.Max(0.0001f, AreaScale());
         var rect = AreaRect();
         int rightCols = Mathf.Max(Specials.Length, paints.Count);
-        float gap = rect.height * 0.045f, spacer = gap * 1.5f;
-        float cell = Mathf.Min((rect.height - gap) / 2f, (rect.width - spacer - gap * (rightCols)) / (2 + rightCols));
+        // u — пиксель рисунка подложки и разделителя (как у рамки консоли), целое число пикселей экрана.
+        float px = areaScale * sf;
+        float u = Mathf.Max(1f, Mathf.Round(ArtPixel * px)) / px;
+        float gap = rect.height * 0.03f;
+        float spacer = u * 3f;   // между компасом и правым блоком: разделитель шириной u и по u воздуха
+        float pad = u;           // поле подложки вокруг кнопок
+        float cell = Mathf.Min((rect.height - gap - pad * 2f) / 2f,
+                               (rect.width - spacer - gap * rightCols - pad * 2f) / (2 + rightCols));
         // Кнопка — целое число пикселей экрана на пиксель рисунка 13×13.
-        int k = Mathf.Max(1, Mathf.FloorToInt(cell * areaScale * sf / ButtonArt));
-        cell = ButtonArt * k / (areaScale * sf);
+        int k = Mathf.Max(1, Mathf.FloorToInt(cell * px / ButtonArt));
+        cell = ButtonArt * k / px;
 
         float blockW = cell * (2 + rightCols) + gap * rightCols + spacer;
         float left = rect.center.x - blockW * 0.5f;
@@ -172,6 +179,16 @@ public class CommandDock : MonoBehaviour
         Vector2 CellCenter(int col, int row, bool right) =>
             new Vector2(left + (right ? cell * 2f + gap + spacer : 0f) + col * (cell + gap) + cell * 0.5f,
                         top - row * (cell + gap) - cell * 0.5f);
+
+        // Подложка под всем блоком и разделитель «ходы | функции».
+        float blockH = cell * 2f + gap;
+        var tray = Tray();
+        Place(tray.rectTransform, rect.center, new Vector2(blockW + pad * 2f, blockH + pad * 2f));
+        tray.pixelsPerUnitMultiplier = 1f / u;
+        var divider = Divider();
+        float dividerX = left + cell * 2f + gap + spacer * 0.5f;
+        Place(divider.rectTransform, new Vector2(dividerX, rect.center.y), new Vector2(u, blockH));
+        divider.pixelsPerUnitMultiplier = 1f / u;
 
         int socket = 0;
         for (int i = 0; i < Compass.Length; i++)
@@ -181,6 +198,10 @@ public class CommandDock : MonoBehaviour
         if (paintRow)
             for (int i = 0; i < paints.Count; i++) Place(paints[i], CellCenter(i, 1, true), cell);
         for (int i = socket; i < _sockets.Count; i++) if (_sockets[i] != null) _sockets[i].gameObject.SetActive(false);
+        // Порядок отрисовки: подложка, разделитель, гнёзда, кнопки.
+        foreach (var sk in _sockets) if (sk != null) sk.transform.SetAsFirstSibling();
+        divider.transform.SetAsFirstSibling();
+        tray.transform.SetAsFirstSibling();
 
         // Прочие кнопки (неизвестные карточки) — в конец нижнего правого ряда, чтобы не пропали.
         int extra = paintRow ? paints.Count : 0;
@@ -219,28 +240,52 @@ public class CommandDock : MonoBehaviour
     }
 
     /// <summary>Поставить элемент в точку области (её локальные координаты), размер — cell × cell.</summary>
-    void Place(RectTransform rt, Vector2 areaPoint, float cell)
+    void Place(RectTransform rt, Vector2 areaPoint, float cell) => Place(rt, areaPoint, new Vector2(cell, cell));
+
+    /// <summary>Поставить элемент в точку области (её локальные координаты), размер — в единицах области.</summary>
+    void Place(RectTransform rt, Vector2 areaPoint, Vector2 size)
     {
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.position = _area.TransformPoint(areaPoint);
         float rel = rt.parent != null && rt.parent.lossyScale.x > 0.0001f ? _area.lossyScale.x / rt.parent.lossyScale.x : 1f;
-        rt.sizeDelta = new Vector2(cell * rel, cell * rel);
+        rt.sizeDelta = size * rel;
         var img = rt.GetComponent<Image>();
         if (img != null) PixelSnapUI.Exclude(img); // размер задаёт док, не PixelSnapUI
+    }
+
+    /// <summary>Новая картинка дока (подложка, разделитель, гнездо) — дочерняя ряда кнопок, без нажатий.</summary>
+    Image MakeImage(string name, Sprite sprite, Image.Type type)
+    {
+        var go = new GameObject(name, typeof(RectTransform));
+        go.transform.SetParent(transform, false);
+        go.transform.SetAsFirstSibling();
+        var img = go.AddComponent<Image>();
+        img.sprite = sprite;
+        img.type = type;
+        img.raycastTarget = false;
+        PixelSnapUI.Exclude(img);
+        return img;
+    }
+
+    Image Tray()
+    {
+        if (_tray == null) _tray = MakeImage("DockTray", TraySprite, Image.Type.Sliced);
+        _tray.gameObject.SetActive(true);
+        return _tray;
+    }
+
+    Image Divider()
+    {
+        if (_divider == null) _divider = MakeImage("DockDivider", DividerSprite, Image.Type.Tiled);
+        _divider.gameObject.SetActive(true);
+        return _divider;
     }
 
     Image Socket(int index)
     {
         while (_sockets.Count <= index)
         {
-            var go = new GameObject("DockSocket" + _sockets.Count, typeof(RectTransform));
-            go.transform.SetParent(transform, false);
-            go.transform.SetAsFirstSibling(); // под кнопками
-            var img = go.AddComponent<Image>();
-            img.sprite = SocketSprite;
-            img.type = Image.Type.Sliced;
-            img.raycastTarget = false;
-            _sockets.Add(img);
+            _sockets.Add(MakeImage("DockSocket" + _sockets.Count, SocketSprite, Image.Type.Sliced));
         }
         var s = _sockets[index];
         var canvas = GetComponentInParent<Canvas>();
@@ -250,16 +295,56 @@ public class CommandDock : MonoBehaviour
         return s;
     }
 
+    static Color Hex(string hex) { ColorUtility.TryParseHtmlString(hex, out var c); return c; }
+
+    /// <summary>
+    /// Подложка дока — утопленная в консоль тёмная плита: тёмный контур, тень под верхним краем,
+    /// светлая кромка снизу (свет консоли падает сверху). Цвета — холодные, из палитры консоли (#3B445C).
+    /// Sliced, рамка 2 px.
+    /// </summary>
+    static Sprite TraySprite
+    {
+        get
+        {
+            if (_traySprite != null) return _traySprite;
+            var pal = new Dictionary<char, Color>
+            {
+                { '#', Hex("#1F2433") }, { 't', Hex("#262C3E") }, { 'k', Hex("#2D3448") }, { 'q', Hex("#4A5570") },
+            };
+            _traySprite = PixelSprites.Make(new[]
+            {
+                ".#####.",
+                "#ttttt#",
+                "#tkkkk#",
+                "#kkkkk#",
+                "#kkkkk#",
+                "#qqqqq#",
+                ".#####.",
+            }, pal, new Vector4(2, 2, 2, 2));
+            return _traySprite;
+        }
+    }
+
+    /// <summary>Разделитель «ходы | функции»: пунктир из светлых точек через одну (Tiled, 1×2).</summary>
+    static Sprite DividerSprite
+    {
+        get
+        {
+            if (_dividerSprite != null) return _dividerSprite;
+            var pal = new Dictionary<char, Color> { { 'o', Hex("#56627F") } };
+            _dividerSprite = PixelSprites.Make(new[] { "o", "." }, pal);
+            return _dividerSprite;
+        }
+    }
+
     /// <summary>Тёмное утопленное гнездо: контур, тень сверху, чуть светлее снизу. Sliced, рамка 2 px.</summary>
     static Sprite SocketSprite
     {
         get
         {
             if (_socketSprite != null) return _socketSprite;
-            ColorUtility.TryParseHtmlString("#1D2140", out var top);
-            ColorUtility.TryParseHtmlString("#262A4D", out var mid);
-            ColorUtility.TryParseHtmlString("#343963", out var low);
-            var pal = new Dictionary<char, Color> { { '#', PixelSprites.Ink }, { 't', top }, { 'k', mid }, { 'q', low } };
+            Color top = Hex("#1B2030"), mid = Hex("#222837"), low = Hex("#353E55");
+            var pal = new Dictionary<char, Color> { { '#', Hex("#161A26") }, { 't', top }, { 'k', mid }, { 'q', low } };
             _socketSprite = PixelSprites.Make(new[]
             {
                 ".#####.",
