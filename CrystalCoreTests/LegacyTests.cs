@@ -204,6 +204,8 @@ static class LegacyTests
                     mm.Colors[slot] = sol.Select(c => c.color).ToList();
                 }
                 T.True(CoreRunBridge.TryPlan(mm, lvl, start, out var plan, out var result), lvl.name + ": plan");
+                // Враги, шипы, клетки неба — только в ядре: старых правил для них нет, сверять не с чем.
+                if (lvl.NeedsCore) { T.True(result.Won, lvl.name + ": won (core)"); continue; }
                 var old = LegacyReplay.Run(lvl, start, s => ItemProgramAdapter.SolutionCards(lvl, s));
                 T.True(result.Won && old.Won, lvl.name + ": won");
                 T.Eq(old.Steps, plan.Count, lvl.name + ": steps");
@@ -230,6 +232,7 @@ static class LegacyTests
             int compared = 0;
             foreach (var lvl in levels)
             {
+                if (lvl.NeedsCore) continue; // враги, шипы, небо — старых правил для них нет
                 T.True(LegacyLevelImport.TryFindStartCell(lvl, null, out var start, out var dist) && dist < LegacyLevelImport.StartMatchDistance, lvl.name + ": start");
                 var setup = LegacyLevelImport.ToSetup(lvl, start);
                 bool hasColors = lvl.tiles.Any(t => t.color != TileColor.None);
@@ -304,7 +307,14 @@ static class LegacyTests
     static int Int(string s) => int.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
     static float Float(string s) => float.Parse(s, System.Globalization.CultureInfo.InvariantCulture);
 
-    /// <summary>Минимальный разбор YAML ассета LevelSt: тайлы, старт, оптимум и решение.</summary>
+    /// <summary>
+    /// Минимальный разбор YAML ассета LevelSt: тайлы (с фазой шипов, ветром и парой телепорта), старт,
+    /// враги, оптимум и решение.
+    ///
+    /// Исправлено: раньше разбор не читал врагов, phase / windDir / channel — «Ледяной ромб» проверялся без
+    /// босса, «Волна шипов» — со всеми шипами в фазе 0, облачные уровни считались обычными. Отсюда
+    /// 4 «сломанных уровня» в тестах, хотя сами уровни в игре были в порядке.
+    /// </summary>
     static LevelSt ParseLevel(string path)
     {
         var lines = File.ReadAllLines(path);
@@ -313,6 +323,8 @@ static class LegacyTests
         List<SolutionCard> section = null;
         TileInfo tile = null;
         SolutionCard card = null;
+        LevelEnemy enemy = null;
+        bool inEnemies = false;
 
         foreach (var raw in lines)
         {
@@ -325,6 +337,16 @@ static class LegacyTests
             }
             else if (tile != null && (m = Regex.Match(line, @"^    superTileType: (\d+)")).Success) tile.superTileType = (SuperBlocks)Int(m.Groups[1].Value);
             else if (tile != null && (m = Regex.Match(line, @"^    color: (\d+)")).Success) tile.color = (TileColor)Int(m.Groups[1].Value);
+            else if (tile != null && (m = Regex.Match(line, @"^    phase: (-?\d+)")).Success) tile.phase = Int(m.Groups[1].Value);
+            else if (tile != null && (m = Regex.Match(line, @"^    windDir: (\d+)")).Success) tile.windDir = (ItemType)Int(m.Groups[1].Value);
+            else if (tile != null && (m = Regex.Match(line, @"^    channel: (-?\d+)")).Success) tile.channel = Int(m.Groups[1].Value);
+            else if (Regex.IsMatch(line, @"^  enemies:")) { inEnemies = true; tile = null; card = null; section = null; }
+            else if (inEnemies && (m = Regex.Match(line, @"^  - cell: \{x: (-?\d+), y: (-?\d+)\}")).Success)
+            { enemy = new LevelEnemy { cell = new Vector2Int(Int(m.Groups[1].Value), Int(m.Groups[2].Value)) }; lvl.enemies.Add(enemy); }
+            else if (enemy != null && (m = Regex.Match(line, @"^    archetype: (\w+)")).Success) enemy.archetype = m.Groups[1].Value;
+            else if (enemy != null && (m = Regex.Match(line, @"^    facing: (\d+)")).Success) enemy.facing = (ItemType)Int(m.Groups[1].Value);
+            else if (enemy != null && (m = Regex.Match(line, @"^    path: ?(\S*)")).Success) enemy.path = m.Groups[1].Value;
+            else if (enemy != null && (m = Regex.Match(line, @"^    body: (\d+)")).Success) enemy.body = Int(m.Groups[1].Value);
             else if ((m = Regex.Match(line, @"^  characterPos: \{x: ([-\d.eE]+), y: ([-\d.eE]+), z: ([-\d.eE]+)\}")).Success)
             { lvl.characterPos = new Vector3(Float(m.Groups[1].Value), Float(m.Groups[2].Value), Float(m.Groups[3].Value)); tile = null; }
             else if ((m = Regex.Match(line, @"^  optimalCards: (\d+)")).Success) { lvl.optimalCards = Int(m.Groups[1].Value); tile = null; }
@@ -337,7 +359,7 @@ static class LegacyTests
             else if (card != null && (m = Regex.Match(line, @"^    iterations: (-?\d+)")).Success) card.iterations = Int(m.Groups[1].Value);
             else if (card != null && (m = Regex.Match(line, @"^    span: (-?\d+)")).Success) card.span = Int(m.Groups[1].Value);
             else if (card != null && (m = Regex.Match(line, @"^    color: (\d+)")).Success) card.color = (TileColor)Int(m.Groups[1].Value);
-            else if (Regex.IsMatch(line, @"^  \w")) { tile = null; card = null; if (!line.StartsWith("  - ")) section = null; }
+            else if (Regex.IsMatch(line, @"^  \w")) { tile = null; card = null; enemy = null; inEnemies = false; if (!line.StartsWith("  - ")) section = null; }
         }
         return lvl;
     }
