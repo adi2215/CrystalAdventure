@@ -27,8 +27,9 @@ public class CommandDock : MonoBehaviour
     /// Насколько область кнопок шире прежнего ряда (Scroll View), в единицах канваса: слева, справа, снизу, сверху.
     /// Полоса прокрутки спрятана, поэтому место под ней и по бокам до рамки консоли свободно
     /// (рамка консоли — 5 пикселей рисунка ≈ 43 единицы по бокам и 50 сверху; ряд слотов начинается на 17 ниже ряда).
+    /// Снизу больше: ряд слотов под доком уменьшается до размера кнопок (ShrinkSlots) и опускается.
     /// </summary>
-    public static Vector4 Grow = new Vector4(10f, 10f, 16f, 14f);
+    public static Vector4 Grow = new Vector4(10f, 10f, 26f, 14f);
 
     const float ArtPixel = 6f;     // пиксель гнёзд — как у рамки консоли
     const float ButtonArt = 13f;   // кнопки команд нарисованы 13×13 пикселей
@@ -164,10 +165,11 @@ public class CommandDock : MonoBehaviour
         // u — пиксель рисунка подложки и разделителя (как у рамки консоли), целое число пикселей экрана.
         float px = areaScale * sf;
         float u = Mathf.Max(1f, Mathf.Round(ArtPixel * px)) / px;
-        float gap = rect.height * 0.03f;
+        float gap = u;
         float spacer = u * 3f;   // между компасом и правым блоком: разделитель шириной u и по u воздуха
-        float pad = u;           // поле подложки вокруг кнопок
-        float cell = Mathf.Min((rect.height - gap - pad * 2f) / 2f,
+        float pad = u;           // поле подложки вокруг кнопок сверху и по бокам
+        float padBottom = u * 2f; // снизу шире — у кнопок тень снизу, иначе ряд упирается в край подложки
+        float cell = Mathf.Min((rect.height - gap - pad - padBottom) / 2f,
                                (rect.width - spacer - gap * rightCols - pad * 2f) / (2 + rightCols));
         // Кнопка — целое число пикселей экрана на пиксель рисунка 13×13.
         int k = Mathf.Max(1, Mathf.FloorToInt(cell * px / ButtonArt));
@@ -175,7 +177,9 @@ public class CommandDock : MonoBehaviour
 
         float blockW = cell * (2 + rightCols) + gap * rightCols + spacer;
         float left = rect.center.x - blockW * 0.5f;
-        float top = rect.center.y + (cell * 2f + gap) * 0.5f;
+        // Подложка (с полями) — по центру области; блок кнопок внутри неё чуть выше из-за поля снизу.
+        float blockCenterY = rect.center.y + (padBottom - pad) * 0.5f;
+        float top = blockCenterY + (cell * 2f + gap) * 0.5f;
         Vector2 CellCenter(int col, int row, bool right) =>
             new Vector2(left + (right ? cell * 2f + gap + spacer : 0f) + col * (cell + gap) + cell * 0.5f,
                         top - row * (cell + gap) - cell * 0.5f);
@@ -183,12 +187,14 @@ public class CommandDock : MonoBehaviour
         // Подложка под всем блоком и разделитель «ходы | функции».
         float blockH = cell * 2f + gap;
         var tray = Tray();
-        Place(tray.rectTransform, rect.center, new Vector2(blockW + pad * 2f, blockH + pad * 2f));
+        Place(tray.rectTransform, rect.center, new Vector2(blockW + pad * 2f, blockH + pad + padBottom));
         tray.pixelsPerUnitMultiplier = 1f / u;
         var divider = Divider();
         float dividerX = left + cell * 2f + gap + spacer * 0.5f;
-        Place(divider.rectTransform, new Vector2(dividerX, rect.center.y), new Vector2(u, blockH));
+        Place(divider.rectTransform, new Vector2(dividerX, blockCenterY), new Vector2(u, blockH));
         divider.pixelsPerUnitMultiplier = 1f / u;
+
+        ShrinkSlots(k, sf);
 
         int socket = 0;
         for (int i = 0; i < Compass.Length; i++)
@@ -212,6 +218,44 @@ public class CommandDock : MonoBehaviour
             if (!kv.Value.gameObject.activeSelf) continue;
             Place(kv.Value, CellCenter(extra++, 1, true), cell);
         }
+    }
+
+    GridLayoutGroup _slots;
+    Vector3 _slotsBaseScale;
+    float _slotsFactor = 1f;
+
+    /// <summary>
+    /// Ряд слотов программы под доком (GridLayoutGroup «Buttonsbar» той же панели) — уменьшить до размера
+    /// кнопок дока: тот же пиксель рисунка (13×13), всё влезает и смотрится одним набором (просьба автора).
+    /// Уменьшается масштабом всего ряда — вместе со слотами уменьшаются и карточки в них. Коэффициент —
+    /// отношение целых «пикселей экрана на пиксель рисунка» (например 10/11 на 1080p), поэтому пиксели
+    /// остаются ровными, а PixelSnapUI при пересчёте получит то же самое. Только уменьшение, никогда не больше.
+    /// </summary>
+    void ShrinkSlots(int k, float sf)
+    {
+        if (_slots == null)
+        {
+            for (var p = _area.parent; p != null && _slots == null; p = p.parent)
+            {
+                foreach (var g in p.GetComponentsInChildren<GridLayoutGroup>(true))
+                    if (!g.transform.IsChildOf(transform)) { _slots = g; break; }
+                if (p.GetComponent<Canvas>() != null) break;
+            }
+            if (_slots == null) return;
+            _slotsBaseScale = _slots.transform.localScale;
+        }
+        var canvas = GetComponentInParent<Canvas>();
+        float root = canvas != null ? canvas.rootCanvas.transform.lossyScale.x : 1f;
+        if (Mathf.Abs(root) < 0.000001f || _slotsFactor <= 0f) return;
+        // Масштаб ряда без нашего уменьшения, относительно канваса.
+        float rel = Mathf.Abs(_slots.transform.lossyScale.x / root) / _slotsFactor;
+        // Сколько пикселей экрана на пиксель рисунка слот получил бы сам (как считает PixelSnapUI).
+        float raw = PixelSnapUI.OriginalCell(_slots).x * rel * sf / ButtonArt;
+        int own = Mathf.FloorToInt(raw);
+        float factor = own > k && k > 0 ? (float)k / own : 1f;
+        if (Mathf.Abs(factor - _slotsFactor) < 0.0001f) return;
+        _slotsFactor = factor;
+        _slots.transform.localScale = new Vector3(_slotsBaseScale.x * factor, _slotsBaseScale.y * factor, _slotsBaseScale.z);
     }
 
     /// <summary>Область раскладки: прежний ряд, расширенный на Grow (в локальных координатах Scroll View).</summary>

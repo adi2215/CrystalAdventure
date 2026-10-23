@@ -215,6 +215,13 @@ public class PixelSnapUI : MonoBehaviour
         if (_inst != null) _inst._images[img.GetInstanceID()] = new State { size = rt.sizeDelta, sprite = img.sprite, type = Image.Type.Simple, rel = 1f, skip = true };
     }
 
+    /// <summary>Размер ячейки сетки, заданный в сцене (до подгонки под пиксели). Нужен CommandDock.</summary>
+    public static Vector2 OriginalCell(GridLayoutGroup g)
+    {
+        if (_inst != null && _inst._grids.TryGetValue(g.GetInstanceID(), out var orig)) return orig;
+        return g.cellSize;
+    }
+
     /// <summary>
     /// Сетка карточек: ячейка подгоняется под целый пиксель картинки карточки (вниз — чтобы ряд
     /// не вылез за панель). Размер пикселя берётся по первой картинке в сетке.
