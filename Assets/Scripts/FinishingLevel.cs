@@ -90,6 +90,8 @@ public class FinishingLevel : MonoBehaviour
     float _raysAlpha;
     readonly List<RectTransform> _earnedStars = new List<RectTransform>();
     readonly Dictionary<RectTransform, Vector2> _starHome = new Dictionary<RectTransform, Vector2>();
+    readonly HashSet<RectTransform> _crystalSized = new HashSet<RectTransform>();
+    readonly Dictionary<RectTransform, float> _starBase = new Dictionary<RectTransform, float>();
 
     private void OnEnable()
     {
@@ -180,6 +182,14 @@ public class FinishingLevel : MonoBehaviour
             // Пиксельный кристалл вместо картинки-звезды высокого разрешения; пустой — тёмный силуэт.
             stars[i].sprite = VictorySprites.Crystal(false);
             stars[i].preserveAspect = false;
+            // Кристалл — внутри гнезда, а не поверх ленты: высота ≈ 70 % гнезда (гнездо — 0,9 исходной звезды).
+            var srt = stars[i].rectTransform;
+            if (!_crystalSized.Contains(srt))
+            {
+                float h = (_starBase.TryGetValue(srt, out var baseSize) ? baseSize : Mathf.Min(srt.rect.width, srt.rect.height)) * 0.9f * 0.7f;
+                srt.sizeDelta = new Vector2(h * 11f / 14f, h);
+                _crystalSized.Add(srt);
+            }
             PixelSnapUI.SnapNow(stars[i], S);
             stars[i].color = Color.white;
             stars[i].transform.localScale = Vector3.one * 0.85f * S;
@@ -311,6 +321,7 @@ public class FinishingLevel : MonoBehaviour
             if (star == null) continue;
             var srt = star.rectTransform;
             if (!_starHome.ContainsKey(srt)) _starHome[srt] = srt.anchoredPosition;
+            if (!_starBase.ContainsKey(srt)) _starBase[srt] = Mathf.Min(srt.rect.width, srt.rect.height); // до замены на кристалл
             srt.anchoredPosition = Vector2.Scale(_starHome[srt], new Vector2(S * 1.12f, S));
         }
 
@@ -323,7 +334,7 @@ public class FinishingLevel : MonoBehaviour
                 var sock = socket.rectTransform;
                 sock.anchorMin = srt.anchorMin; sock.anchorMax = srt.anchorMax; sock.pivot = srt.pivot;
                 sock.anchoredPosition = srt.anchoredPosition + new Vector2(0f, -srt.rect.height * 0.04f * S);
-                float d = Mathf.Min(srt.rect.width, srt.rect.height) * 0.9f * S;
+                float d = (_starBase.TryGetValue(srt, out var baseSize) ? baseSize : Mathf.Min(srt.rect.width, srt.rect.height)) * 0.9f * S;
                 sock.sizeDelta = new Vector2(d, d);
                 sock.SetSiblingIndex(srt.GetSiblingIndex()); // под звездой
                 socket.pixelsPerUnitMultiplier = 1f;
