@@ -54,53 +54,44 @@ public static class VictorySprites
         "..############..",
     }, Pal, new Vector4(5, 5, 5, 5));
 
-    /// <summary>Строка итогов: плашка с бликом сверху и тенью снизу. Sliced, рамка 3 px.</summary>
+    /// <summary>
+    /// Строка итогов: плашка 8 пикселей высотой — тот же крупный пиксель, что у рамки консоли
+    /// (FinishingLevel.artPixel). Sliced, рамка 2 px: контур + блик сверху / тень снизу.
+    /// </summary>
     public static Sprite RowPlate => _row != null ? _row : _row = PixelSprites.Make(new[]
     {
-        ".########.",
-        "#hhhhhhhh#",
-        "#hrrrrrrr#",
-        "#rrrrrrrr#",
-        "#rrrrrrrr#",
-        "#rrrrrrrr#",
-        "#rrrrrrrr#",
-        "#dddddddd#",
-        "#dddddddd#",
-        ".########.",
-    }, Pal, new Vector4(3, 3, 3, 3));
+        ".######.",
+        "#hhhhhh#",
+        "#rrrrrr#",
+        "#rrrrrr#",
+        "#rrrrrr#",
+        "#rrrrrr#",
+        "#dddddd#",
+        ".######.",
+    }, Pal, new Vector4(2, 2, 2, 2));
 
+    /// <summary>Зелёный «+» 7×7 (крупный пиксель, как у консоли).</summary>
     public static Sprite Plus => _plus != null ? _plus : _plus = PixelSprites.Make(new[]
     {
-        "....#####....",
-        "..##EEEEE##..",
-        ".#EEGGGGGGG#.",
-        ".#EGGG#GGGG#.",
-        "#EGGG#w#GGGG#",
-        "#GG###w###GG#",
-        "#GG#wwwwww#G#",
-        "#GG###w###GG#",
-        "#GGGG#w#GGGG#",
-        ".#GGGG#GGGG#.",
-        ".#GGGGGGGGG#.",
-        "..##GGGGG##..",
-        "....#####....",
+        ".#####.",
+        "#GGwGG#",
+        "#GGwGG#",
+        "#wwwww#",
+        "#GGwGG#",
+        "#GGwGG#",
+        ".#####.",
     }, Pal);
 
+    /// <summary>Красный «−» 7×7.</summary>
     public static Sprite Minus => _minus != null ? _minus : _minus = PixelSprites.Make(new[]
     {
-        "....#####....",
-        "..##PPPPP##..",
-        ".#PPRRRRRRR#.",
-        ".#PRRRRRRRR#.",
-        "#PRRRRRRRRRR#",
-        "#RR#######RR#",
-        "#RR#wwwwww#R#",
-        "#RR#######RR#",
-        "#RRRRRRRRRRR#",
-        ".#RRRRRRRRR#.",
-        ".#RRRRRRRRR#.",
-        "..##RRRRR##..",
-        "....#####....",
+        ".#####.",
+        "#RRRRR#",
+        "#RRRRR#",
+        "#wwwww#",
+        "#RRRRR#",
+        "#RRRRR#",
+        ".#####.",
     }, Pal);
 
     /// <summary>0 — карточки, 1 — подсказка (лампочка), 2 — край (знак внимания).</summary>
@@ -111,52 +102,40 @@ public static class VictorySprites
         string[] rows;
         switch (index)
         {
-            case 1:
+            case 1: // лампочка — «без подсказок»
                 rows = new[]
                 {
-                    "...#####...",
-                    "..#yyyyy#..",
-                    ".#yywyyyy#.",
-                    ".#ywyyyyy#.",
-                    ".#yyyyyyy#.",
-                    ".#yyyyyyy#.",
-                    "..#yyyyy#..",
-                    "...#yyy#...",
-                    "...#####...",
-                    "...#ggg#...",
-                    "....###....",
+                    ".#####.",
+                    "#ywyyy#",
+                    "#wyyyy#",
+                    "#yyyyy#",
+                    ".#yyy#.",
+                    ".#ggg#.",
+                    "..###..",
                 };
                 break;
-            case 2:
+            case 2: // знак внимания — «край»
                 rows = new[]
                 {
-                    ".....#.....",
-                    "....#o#....",
-                    "....#o#....",
-                    "...#ooo#...",
-                    "...#o#o#...",
-                    "..#oo#oo#..",
-                    "..#oo#oo#..",
-                    ".#ooooooo#.",
-                    ".#ooo#ooo#.",
-                    "#ooooooooo#",
-                    "###########",
+                    "...#...",
+                    "..#o#..",
+                    "..#w#..",
+                    ".#owo#.",
+                    ".#ooo#.",
+                    "#oowoo#",
+                    "#######",
                 };
                 break;
-            default:
+            default: // карточка со стрелкой — «карточки»
                 rows = new[]
                 {
-                    ".#########.",
-                    "#wwwwwwwww#",
-                    "#w####wwww#",
-                    "#w##wwwwww#",
-                    "#w#w#wwwww#",
-                    "#w#ww#wwww#",
-                    "#wwwww#www#",
-                    "#wwwwww#ww#",
-                    "#wwwwwwwww#",
-                    "#ccccccccc#",
-                    ".#########.",
+                    "#######",
+                    "#ww#ww#",
+                    "#w###w#",
+                    "#ww#ww#",
+                    "#ww#ww#",
+                    "#ccccc#",
+                    "#######",
                 };
                 break;
         }

@@ -54,6 +54,12 @@ public class FinishingLevel : MonoBehaviour
     [Tooltip("Высота строки итогов")] public float resultRowHeight = 42f;
     [Tooltip("Отступ строк итогов от ленты со звёздами")] public float resultGap = 12f;
 
+    [Header("Пиксели (по отзыву автора)")]
+    [Tooltip("Размер пикселя рисунков окна (кристаллы, строки итогов, значки) в единицах канваса — как у рамки консоли")]
+    public float artPixel = 6f;
+    [Tooltip("Старое оформление: золотая лента под кристаллами, гнёзда и лучи. Выключено — оно было не пиксельным")]
+    public bool legacyDecor = false;
+
     [Header("Положение")]
     [Tooltip("На сколько пикселей поднять плашку со звёздами (итоги поднимутся вместе с ней)")]
     public float panelRaise = 90f;
@@ -90,7 +96,6 @@ public class FinishingLevel : MonoBehaviour
     float _raysAlpha;
     readonly List<RectTransform> _earnedStars = new List<RectTransform>();
     readonly Dictionary<RectTransform, Vector2> _starHome = new Dictionary<RectTransform, Vector2>();
-    readonly HashSet<RectTransform> _crystalSized = new HashSet<RectTransform>();
     readonly Dictionary<RectTransform, float> _starBase = new Dictionary<RectTransform, float>();
 
     private void OnEnable()
@@ -175,6 +180,12 @@ public class FinishingLevel : MonoBehaviour
         var starScale = new Vector3[stars != null ? stars.Length : 0];
         _earnedStars.Clear();
         BuildStarDecor(S);
+        // Золотая лента под кристаллами — не пиксельная картинка: прячем (сами кристаллы — её дети, остаются).
+        if (!legacyDecor && stars != null && stars.Length > 0 && stars[0] != null)
+        {
+            var ribbon = stars[0].rectTransform.parent != null ? stars[0].rectTransform.parent.GetComponent<Image>() : null;
+            if (ribbon != null) ribbon.enabled = false;
+        }
         for (int i = 0; i < starScale.Length; i++)
         {
             if (stars[i] == null) continue;
@@ -182,15 +193,8 @@ public class FinishingLevel : MonoBehaviour
             // Пиксельный кристалл вместо картинки-звезды высокого разрешения; пустой — тёмный силуэт.
             stars[i].sprite = VictorySprites.Crystal(false);
             stars[i].preserveAspect = false;
-            // Кристалл — внутри гнезда, а не поверх ленты: высота ≈ 70 % гнезда (гнездо — 0,9 исходной звезды).
-            var srt = stars[i].rectTransform;
-            if (!_crystalSized.Contains(srt))
-            {
-                float h = (_starBase.TryGetValue(srt, out var baseSize) ? baseSize : Mathf.Min(srt.rect.width, srt.rect.height)) * 0.9f * 0.7f;
-                srt.sizeDelta = new Vector2(h * 11f / 14f, h);
-                _crystalSized.Add(srt);
-            }
-            PixelSnapUI.SnapNow(stars[i], S);
+            // Пиксель кристалла = пиксель консоли (artPixel), с учётом увеличения S.
+            SizeToArtPixels(stars[i].rectTransform, stars[i].sprite, S);
             stars[i].color = Color.white;
             stars[i].transform.localScale = Vector3.one * 0.85f * S;
             stars[i].transform.localRotation = Quaternion.identity;
@@ -252,15 +256,18 @@ public class FinishingLevel : MonoBehaviour
             var (rowRt, label, mark, good) = lines[i];
             rowRt.gameObject.SetActive(true);
             var rowGroup = rowRt.GetComponent<CanvasGroup>();
-            Vector2 home = rowRt.anchoredPosition;
             PixelSfx.Play(Sfx.Pop, 0.5f, 0.9f + i * 0.08f);
-            yield return Animate(0.22f, k =>
-            {
-                rowRt.anchoredPosition = home + new Vector2(-40f * (1f - BackOut(k, 0f)), 0f);
-                if (rowGroup != null) rowGroup.alpha = Mathf.Clamp01(k * 2f);
-            });
-            rowRt.anchoredPosition = home;
+            // Плашка «раскрывается» от центра ступеньками (пиксельно), вспыхивает белым, значок подпрыгивает.
             if (rowGroup != null) rowGroup.alpha = 1f;
+            yield return Animate(0.2f, k => rowRt.localScale = new Vector3(Mathf.Ceil(k * 6f) / 6f, 1f, 1f));
+            rowRt.localScale = Vector3.one;
+            StartCoroutine(FlashRow(rowRt));
+            var iconRt = rowRt.Find("Icon") as RectTransform;
+            if (iconRt != null)
+            {
+                StartCoroutine(Punch(iconRt, 0.35f, 0.25f));
+                PixelFX.BurstUI(iconRt, new[] { Color.white, new Color(1f, 0.9f, 0.6f, 1f) }, 6, 120f, 10f, 0.4f);
+            }
 
             int total = label.text.Length;
             label.maxVisibleCharacters = 0;
@@ -325,7 +332,7 @@ public class FinishingLevel : MonoBehaviour
             srt.anchoredPosition = Vector2.Scale(_starHome[srt], new Vector2(S * 1.12f, S));
         }
 
-        if (starSockets)
+        if (starSockets && legacyDecor)
             foreach (var star in stars)
             {
                 if (star == null) continue;
@@ -340,7 +347,7 @@ public class FinishingLevel : MonoBehaviour
                 socket.pixelsPerUnitMultiplier = 1f;
             }
 
-        if (starRays && transform is RectTransform self)
+        if (starRays && legacyDecor && transform is RectTransform self)
         {
             _rays = NewImage("StarRays", self, VictorySprites.Rays);
             var rrt = _rays.rectTransform;
@@ -375,9 +382,9 @@ public class FinishingLevel : MonoBehaviour
         if (root == null) return result;
 
         var fontAsset = font != null ? font : FindSceneFont();
-        float gap = Mathf.Max(4f, root.rect.height * 0.04f);
-        float rowH = (root.rect.height - gap * (rows.Count - 1)) / Mathf.Max(1, rows.Count);
-        float px = Mathf.Max(1f, rowH / 14f);      // размер «пикселя» плашек
+        float px = ArtUnit() / ParentScale(root);  // пиксель плашек и значков = пиксель консоли
+        float gap = px;
+        float rowH = 8f * px;                      // плашка — 8 пикселей
 
         for (int i = 0; i < rows.Count; i++)
         {
@@ -395,27 +402,27 @@ public class FinishingLevel : MonoBehaviour
             // Иконка слева
             var icon = NewImage("Icon", rrt, VictorySprites.Icon((int)rows[i].icon));
             var irt = icon.rectTransform;
-            float iconSize = rowH * 0.62f;
+            float iconSize = 7f * px;
             irt.anchorMin = irt.anchorMax = new Vector2(0f, 0.5f);
             irt.pivot = new Vector2(0f, 0.5f);
             irt.sizeDelta = new Vector2(iconSize, iconSize);
-            irt.anchoredPosition = new Vector2(rowH * 0.25f, rowH * 0.02f);
+            irt.anchoredPosition = new Vector2(px * 1f, 0f);
 
             // Значок «+» / «−» справа
             var mark = NewImage("Mark", rrt, rows[i].good ? VictorySprites.Plus : VictorySprites.Minus);
             var mrt = mark.rectTransform;
-            float markSize = rowH * 0.78f;
+            float markSize = 7f * px;
             mrt.anchorMin = mrt.anchorMax = new Vector2(1f, 0.5f);
             mrt.pivot = new Vector2(0.5f, 0.5f);
             mrt.sizeDelta = new Vector2(markSize, markSize);
-            mrt.anchoredPosition = new Vector2(-rowH * 0.2f - markSize * 0.5f, 0f);
+            mrt.anchoredPosition = new Vector2(-px * 1f - markSize * 0.5f, 0f);
             mark.gameObject.SetActive(false);
 
             // Текст между ними
             var label = MakeText(rrt, "Label", fontAsset, TextAlignmentOptions.MidlineLeft);
             _spawned.Add(label.gameObject);
-            label.rectTransform.offsetMin = new Vector2(rowH * 0.25f + iconSize + rowH * 0.25f, rowH * 0.12f);
-            label.rectTransform.offsetMax = new Vector2(-(rowH * 0.3f + markSize + rowH * 0.15f), -rowH * 0.12f);
+            label.rectTransform.offsetMin = new Vector2(px * 2f + iconSize, px);
+            label.rectTransform.offsetMax = new Vector2(-(px * 2f + markSize), -px);
             label.text = rows[i].text;
             label.color = rows[i].good ? Color.white : new Color(1f, 0.86f, 0.86f, 1f);
             label.maxVisibleCharacters = 0;
@@ -462,12 +469,12 @@ public class FinishingLevel : MonoBehaviour
         float floor = next != null ? TopIn(self, (RectTransform)next.transform) : self.rect.yMin + 10f;
 
         float pad = 0f;
-        float gap = 10f;
-        float rowH = resultRowHeight;
+        float u = ArtUnit();
+        float gap = u;
+        float rowH = 8f * u;
         float Need(float h) => rowCount * h + (rowCount - 1) * gap + pad * 2f;
         float margin = resultGap;
         float space = panelBottom - floor - margin * 2f;
-        if (space < Need(rowH)) rowH = Mathf.Max(34f, (space - (rowCount - 1) * gap - pad * 2f) / rowCount);
         if (space < Need(rowH))
         {
             // Совсем мало места — поднимаем звёзды (над ними обычно пусто).
@@ -478,7 +485,9 @@ public class FinishingLevel : MonoBehaviour
         }
 
         float height = Need(rowH) - pad * 2f;
-        float width = Mathf.Min(resultWidth, self.rect.width - 40f);
+        // Не шире консоли: по бокам — рамка окна (≈ 9 пикселей рисунка с каждой стороны). Ширина — целое число пикселей.
+        float width = Mathf.Min(resultWidth, self.rect.width - 18f * u);
+        width = Mathf.Floor(width / u) * u;
         // Строки — сразу под лентой со звёздами (так кнопка «Дальше» остаётся свободной).
         float centerY = panelBottom - resultGap - height * 0.5f;
 
@@ -537,6 +546,53 @@ public class FinishingLevel : MonoBehaviour
     TMP_FontAsset FindSceneFont()
     {
         return GameFont.Main;
+    }
+
+    /// <summary>Белая вспышка поверх плашки строки (тот же рисунок плашки), гаснет ступеньками.</summary>
+    IEnumerator FlashRow(RectTransform row)
+    {
+        var flash = NewImage("Flash", row, VictorySprites.RowPlate);
+        var plate = row.GetComponent<Image>();
+        flash.type = Image.Type.Sliced;
+        flash.pixelsPerUnitMultiplier = plate != null ? plate.pixelsPerUnitMultiplier : 1f;
+        var frt = flash.rectTransform;
+        frt.anchorMin = Vector2.zero; frt.anchorMax = Vector2.one;
+        frt.offsetMin = frt.offsetMax = Vector2.zero;
+        for (float t = 0f; t < 1f; t += Time.unscaledDeltaTime / 0.25f)
+        {
+            float a = Mathf.Floor((1f - t) * 4f) / 4f * 0.7f; // 4 ступеньки прозрачности
+            flash.color = new Color(1f, 1f, 1f, a);
+            yield return null;
+        }
+        if (flash != null) Destroy(flash.gameObject);
+    }
+
+    // ───────────────────────────── пиксели ─────────────────────────────
+
+    /// <summary>Пиксель рисунков окна в единицах канваса: artPixel, подогнанный до целых пикселей экрана.</summary>
+    float ArtUnit()
+    {
+        var canvas = GetComponentInParent<Canvas>();
+        float s = canvas != null ? canvas.rootCanvas.scaleFactor : 1f;
+        if (s <= 0.0001f) s = 1f;
+        return Mathf.Max(1f, Mathf.Round(artPixel * s)) / s;
+    }
+
+    /// <summary>Масштаб родителя относительно канваса (окно может быть увеличено/уменьшено).</summary>
+    float ParentScale(RectTransform rt)
+    {
+        var canvas = GetComponentInParent<Canvas>();
+        if (canvas == null || rt.parent == null) return 1f;
+        float cs = canvas.rootCanvas.transform.lossyScale.x;
+        return cs > 0.0001f ? Mathf.Abs(rt.parent.lossyScale.x / cs) : 1f;
+    }
+
+    /// <summary>Размер картинки = её пиксели × artPixel (extraScale — масштаб, который код задаёт сам).</summary>
+    void SizeToArtPixels(RectTransform rt, Sprite sprite, float extraScale = 1f)
+    {
+        if (rt == null || sprite == null) return;
+        float u = ArtUnit() / (ParentScale(rt) * Mathf.Max(0.01f, extraScale));
+        rt.sizeDelta = new Vector2(sprite.rect.width * u, sprite.rect.height * u);
     }
 
     // ───────────────────────────── помощники ─────────────────────────────
