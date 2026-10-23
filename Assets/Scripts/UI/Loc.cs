@@ -194,6 +194,22 @@ public static class Loc
         { "Add the F1 card. One card = all four moves!", "Добавь карточку F1. Одна карточка = все четыре хода!" },
         { "Use F1 again whenever the stairs repeat. Finish the path yourself!", "Ставь F1 каждый раз, когда лесенка повторяется. Дальше — сам!" },
 
+        // ── Конец главы и финал (StoryDirector.ChapterComplete, StoryLines.Outros) ──
+        { "Chapter complete!", "Глава пройдена!" },
+        { "The Ascent is complete!", "Восхождение завершено!" },
+        { "Stars: {0} / {1}", "Звёзды: {0} / {1}" },
+        { "Thank you for playing!", "Спасибо за игру!" },
+        { "We did it, Cris! The Forest Guardian is free again!", "Получилось, Крис! Лесной страж снова свободен!" },
+        { "The first shard is ours. Look how it glows!", "Первый осколок наш. Смотри, как он сияет!" },
+        { "Next stop: the snowy Peaks. Bundle up!", "Дальше — снежные вершины. Одевайся теплее!" },
+        { "The Frost Diamond is melting... The second shard!", "Ледяной ромб тает... Второй осколок!" },
+        { "Feel that? The wind gets stronger the higher we climb.", "Чувствуешь? Чем выше, тем сильнее ветер." },
+        { "Only the Sky is left. Onward and upward, partner!", "Осталось только небо. Вперёд и вверх, напарник!" },
+        { "The last shard! Cris, we gathered them all!", "Последний осколок! Крис, мы собрали все!" },
+        { "The shards rose into the air and found their places.", "Осколки поднялись в воздух и встали на свои места." },
+        { "The Crystal Heart shone again, brighter than ever.", "Кристальное Сердце снова засияло — ярче, чем прежде." },
+        { "Thank you, partner. My commands were nothing without your steps.", "Спасибо, напарник. Мои команды ничего не стоят без твоих шагов." },
+
         // ── Туториал: вторая функция (LevelWinter10) ──
         { "A new card: F2! It is a second function.", "Новая карточка: F2! Это вторая функция." },
         { "Look: this time Main has no arrows. Only F1 and F2!", "Смотри: в этот раз в Main нет стрелок. Только F1 и F2!" },

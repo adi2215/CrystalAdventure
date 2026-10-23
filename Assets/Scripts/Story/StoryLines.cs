@@ -40,6 +40,34 @@ public static class StoryLines
         N("And so, the Ascent began."),
     };
 
+    /// <summary>
+    /// После босса главы — экран «Глава пройдена» (StoryDirector.ChapterComplete): номер главы
+    /// (0 Forest, 1 Winter, 2 Sky) → реплики. Глава 2 — финал игры.
+    /// </summary>
+    public static readonly Line[][] Outros =
+    {
+        new[]
+        {
+            Ela("We did it, Cris! The Forest Guardian is free again!"),
+            Ela("The first shard is ours. Look how it glows!"),
+            Ela("Next stop: the snowy Peaks. Bundle up!"),
+        },
+        new[]
+        {
+            Ela("The Frost Diamond is melting... The second shard!"),
+            Ela("Feel that? The wind gets stronger the higher we climb."),
+            Ela("Only the Sky is left. Onward and upward, partner!"),
+        },
+        new[]
+        {
+            Ela("The last shard! Cris, we gathered them all!"),
+            N("The shards rose into the air and found their places."),
+            N("The Crystal Heart shone again, brighter than ever."),
+            Ela("Thank you, partner. My commands were nothing without your steps."),
+            Cris("Beep!"),
+        },
+    };
+
     /// <summary>Вступления перед боссами: имя ассета LevelSt → реплики.</summary>
     public static readonly Dictionary<string, Line[]> Intros = new Dictionary<string, Line[]>
     {

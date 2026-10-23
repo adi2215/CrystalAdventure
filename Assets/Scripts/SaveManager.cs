@@ -129,6 +129,16 @@ public static class SaveManager
         return list != null && levelNumber >= 0 && levelNumber < list.Count && list[levelNumber] != null ? list[levelNumber].name : null;
     }
 
+    /// <summary>Лучшие звёзды уровня по имени ассета (0 — не пройден).</summary>
+    public static int StarsOf(LevelSaveDatabase db, string levelName)
+    {
+        if (db == null || db.levels == null || string.IsNullOrEmpty(levelName)) return 0;
+        int best = 0;
+        foreach (var l in db.levels)
+            if (l != null && l.levelName == levelName && l.starsEarned > best) best = l.starsEarned;
+        return best;
+    }
+
     /// <summary>
     /// Номер первого непройденного уровня в текущем порядке (пройден — есть хотя бы одна звезда).
     /// Все пройдены — последний уровень. Нужен кнопке Play: продолжить, а не начинать с первого.

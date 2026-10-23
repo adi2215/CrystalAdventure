@@ -24,6 +24,9 @@ public class StoryDirector : MonoBehaviour
 {
     const string PrologueKey = "story.prologue.seen";
     const string IntroKeyPrefix = "story.intro.";
+    const string ChapterKeyPrefix = "story.chapter.done.";
+    /// <summary>Боссы глав по порядку: Forest, Winter, Sky.</summary>
+    static readonly string[] ChapterBosses = { "LevelBossForest", "LevelBossWinter", "LevelBossSky" };
     const float TypeSpeed = 40f;
 
     static readonly Color Ink = PixelSprites.Ink;
@@ -124,6 +127,18 @@ public class StoryDirector : MonoBehaviour
             timeout -= Time.unscaledDeltaTime;
             yield return null;
         }
+        // Босс главы побеждён — один раз показываем «Глава пройдена» (после Sky — финал игры).
+        // Показ — при следующей загрузке уровня: окно победы и переход идут как обычно.
+        var save = SaveManager.Load();
+        for (int ch = 0; ch < ChapterBosses.Length; ch++)
+        {
+            if (PlayerPrefs.GetInt(ChapterKeyPrefix + ch, 0) != 0) continue;
+            if (SaveManager.StarsOf(save, ChapterBosses[ch]) <= 0) continue;
+            yield return Block(ChapterComplete(ch, save));
+            PlayerPrefs.SetInt(ChapterKeyPrefix + ch, 1);
+            PlayerPrefs.Save();
+        }
+
         var level = TilemapData.CurrentLevel;
         if (level != null && StoryLines.Intros.TryGetValue(level.name, out var lines) && PlayerPrefs.GetInt(IntroKeyPrefix + level.name, 0) == 0)
         {
@@ -825,6 +840,87 @@ public class StoryDirector : MonoBehaviour
         }
         yield return HideBox();
         yield return Tween(0.3f, k => _rootGroup.alpha = 1f - k);
+        Destroy(_root.parent.gameObject);
+        _root = null;
+    }
+
+    /// <summary>
+    /// «Глава пройдена»: небо главы, гора со звездой на высоте главы (лес — у подножия, снег — посередине,
+    /// небо — у вершины), название главы, звёзды за главу, реплики Элы (StoryLines.Outros).
+    /// После главы Sky — финал: Сердце снова сияет и «Спасибо за игру!».
+    /// </summary>
+    IEnumerator ChapterComplete(int ch, LevelSaveDatabase save)
+    {
+        BuildCanvas();
+        _skip = false;
+        _rootGroup.alpha = 1f;
+        bool final = ch >= ChapterBosses.Length - 1;
+
+        yield return Tween(0.4f, k => _black.color = new Color(0f, 0f, 0f, k), ignoreSkip: true);
+        ClearStage();
+        if (ch == 0) Fill(StoryArt.Sky(new Color(0.33f, 0.60f, 0.90f, 1f), new Color(0.98f, 0.93f, 0.76f, 1f)));
+        else if (ch == 1) Fill(StoryArt.Sky(new Color(0.40f, 0.50f, 0.72f, 1f), new Color(0.86f, 0.91f, 0.98f, 1f)));
+        else Fill(StoryArt.Sky(new Color(0.20f, 0.16f, 0.42f, 1f), new Color(0.98f, 0.66f, 0.62f, 1f)));
+        Stars(final ? 30 : 10, final ? 60f : 260f);
+        for (int i = 0; i < 4; i++)
+            Art(_stage, StoryArt.Cloud(i), new Vector2(-900f + i * 520f, -420f + (i % 2) * 140f), 5f).name = "Cloud";
+
+        // Гора и Сердце — как на титульном экране; звезда отмечает, докуда дошли.
+        const float mountainX = 560f, mountainY = -540f, scale = 5f;
+        var mountain = Art(_stage, StoryArt.Mountain, new Vector2(mountainX, mountainY), scale);
+        var heart = Art(_stage, StoryArt.Heart, new Vector2(mountainX, mountainY + scale * 88f + 40f), 3f);
+        if (heart != null)
+        {
+            if (final) StartCoroutine(Glow(heart));
+            else heart.color = new Color(0.55f, 0.5f, 0.65f, 1f); // Сердце ещё не собрано
+        }
+        float[] heights = { 0.22f, 0.58f, 0.95f };
+        var mark = Art(_stage, StoryArt.Star, new Vector2(mountainX, mountainY + scale * 88f * heights[Mathf.Clamp(ch, 0, 2)]), 10f);
+        if (mark != null) { mark.color = Gold; StartCoroutine(Twinkle(mark)); }
+
+        // Заголовок, глава, звёзды.
+        var titleRt = NewRect("Title", _stage);
+        Place(titleRt, new Vector2(-380f, 300f), new Vector2(1000f, 120f));
+        var title = NewText(titleRt, Loc.T(final ? "The Ascent is complete!" : "Chapter complete!"), 70f, TextAlignmentOptions.Center);
+        title.color = Color.white;
+        var nameRt = NewRect("Chapter", _stage);
+        Place(nameRt, new Vector2(-380f, 180f), new Vector2(1000f, 120f));
+        var chapterName = NewText(nameRt, LevelChapters.Name(ch), 96f, TextAlignmentOptions.Center);
+        chapterName.color = Gold;
+
+        int got = 0, count = 0;
+        var list = LevelChapters.CurrentList;
+        if (list != null)
+            for (int i = 0; i < list.Count; i++)
+                if (list[i] != null && LevelChapters.ChapterOf(list, i) == ch) { count++; got += SaveManager.StarsOf(save, list[i].name); }
+        var starsRt = NewRect("Stars", _stage);
+        Place(starsRt, new Vector2(-380f, 70f), new Vector2(1000f, 90f));
+        var stars = NewText(starsRt, Loc.F("Stars: {0} / {1}", got, count * 3), 54f, TextAlignmentOptions.Center);
+        stars.color = Color.white;
+
+        yield return Tween(0.5f, k => _black.color = new Color(0f, 0f, 0f, 1f - k), ignoreSkip: true);
+        PixelSfx.Play(Sfx.Star, 1f, final ? 0.8f : 1f);
+        if (final && heart != null) yield return Flash(0.6f);
+
+        foreach (var line in StoryLines.Outros[Mathf.Clamp(ch, 0, StoryLines.Outros.Length - 1)])
+        {
+            if (_skip) break;
+            yield return Say(SpeakerFor(line.Who), line.Text);
+        }
+        yield return HideBox();
+
+        if (final)
+        {
+            var thanksRt = NewRect("Thanks", _stage);
+            Place(thanksRt, new Vector2(-380f, -80f), new Vector2(1000f, 120f));
+            var thanks = NewText(thanksRt, Loc.T("Thank you for playing!"), 64f, TextAlignmentOptions.Center);
+            thanks.color = Gold;
+            _skip = false;
+            _tapped = false;
+            while (!_tapped && !_skip) yield return null;
+        }
+
+        yield return Tween(0.4f, k => _rootGroup.alpha = 1f - k, ignoreSkip: true);
         Destroy(_root.parent.gameObject);
         _root = null;
     }
