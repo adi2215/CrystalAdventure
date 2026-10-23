@@ -53,6 +53,8 @@ public static class SpecialTiles
         public bool Gone;
     }
     static bool _winter;
+    /// <summary>Плиты, которые сейчас дрожат под героем (Tremble): клетка → место блока до дрожи.</summary>
+    static readonly Dictionary<Vector2Int, Vector3> TrembleHome = new Dictionary<Vector2Int, Vector3>();
 
     static Sprite _ice, _cracks, _snow;
 
@@ -62,6 +64,12 @@ public static class SpecialTiles
     public static SuperBlocks At(int x, int y) => Current.TryGetValue(new Vector2Int(x, y), out var b) ? b : SuperBlocks.None;
     public static bool IsIce(OverlayTile t) => t != null && At(t.gridLocation.x, t.gridLocation.y) == SuperBlocks.Ice;
     public static bool IsCrumbling(OverlayTile t) => t != null && At(t.gridLocation.x, t.gridLocation.y) == SuperBlocks.Crumbling;
+    /// <summary>Клетки с этой особой клеткой (для бликов на льду — World/TileGlints).</summary>
+    public static IEnumerable<Vector2Int> CellsOf(SuperBlocks type)
+    {
+        foreach (var kv in Current) if (kv.Value == type) yield return kv.Key;
+    }
+
     /// <summary>Видимый блок клетки (для волны поля — World/BoardWave).</summary>
     public static bool TryGetBlock(Vector2Int cell, out GameObject block) => AllBlocks.TryGetValue(cell, out block) && block != null;
 
@@ -91,6 +99,7 @@ public static class SpecialTiles
         WindDir.Clear();
         PortalChannel.Clear();
         Clouds.Clear();
+        TrembleHome.Clear();
         _winter = LevelChapters.ChapterOf(levelIndex) == LevelChapters.Winter; // снег — на уровнях главы Winter
         if (level == null || level.tiles == null) return;
 
@@ -160,6 +169,38 @@ public static class SpecialTiles
     }
 
     /// <summary>
+    /// Герой встал на рассыпающуюся плиту: она коротко дрожит (на целые пиксели) и роняет пару камешков —
+    /// предупреждение «второй раз сюда не встать». Сама плита падает позже, когда герой уйдёт (Crumble).
+    /// </summary>
+    public static void Tremble(OverlayTile tile)
+    {
+        if (tile == null) return;
+        var key = new Vector2Int(tile.gridLocation.x, tile.gridLocation.y);
+        if (At(key.x, key.y) != SuperBlocks.Crumbling || Broken.Contains(key) || TrembleHome.ContainsKey(key)) return;
+        if (!AllBlocks.TryGetValue(key, out var block) || block == null) return;
+        var host = ActiveBlockManager.Instance;
+        if (host == null) return;
+        TrembleHome[key] = block.transform.localPosition;
+        host.StartCoroutine(TrembleRoutine(key, block));
+        var sr = block.GetComponent<SpriteRenderer>();
+        PixelFX.Burst(tile.transform.position, PixelFX.DustColors, 3, 0.15f, 0.05f, 1.2f,
+                      sr != null ? sr.sortingLayerID : 0, sr != null ? sr.sortingOrder + 3 : 0, PixelFX.Dot, 0.8f, 0.4f);
+    }
+
+    static IEnumerator TrembleRoutine(Vector2Int key, GameObject block)
+    {
+        for (float t = 0f; t < 0.24f; t += Time.deltaTime)
+        {
+            if (block == null || !TrembleHome.TryGetValue(key, out var home)) yield break; // плита уже падает
+            float shake = Mathf.Round(Mathf.Sin(t * 70f)) * 0.01f; // 1 пиксель влево-вправо
+            block.transform.localPosition = home + new Vector3(shake, 0f, 0f);
+            yield return null;
+        }
+        if (block != null && TrembleHome.TryGetValue(key, out var h)) block.transform.localPosition = h;
+        TrembleHome.Remove(key);
+    }
+
+    /// <summary>
     /// Любая клетка проваливается (удар хвостом лесной змеи) — так же, как рассыпающаяся плита,
     /// и так же возвращается при Rewind (ResetAll).
     /// </summary>
@@ -182,6 +223,8 @@ public static class SpecialTiles
             if (sr != null)
                 PixelFX.Burst(block.transform.position + Vector3.up * 0.12f, PixelFX.DustColors, 10, 0.5f, 0.15f, 1.6f,
                               sr.sortingLayerID, sr.sortingOrder + 3, PixelFX.Dot, 1f, 0.6f);
+            // Плита ещё дрожит под героем — сначала на место, иначе «дом» сдвинется на пиксель.
+            if (TrembleHome.TryGetValue(key, out var trembleHome)) { block.transform.localPosition = trembleHome; TrembleHome.Remove(key); }
             // Запоминаем всё сейчас: остров уже собран, блок стоит на своём месте.
             var renderers = block.GetComponentsInChildren<SpriteRenderer>(true);
             var state = new FallState

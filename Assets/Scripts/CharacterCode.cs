@@ -388,6 +388,7 @@ public class CharacterCode : MonoBehaviour
             {
                 yield return MoveToTile(step.target);
             }
+            if (step.target != null && SpecialTiles.IsCrumbling(step.target)) SpecialTiles.Tremble(step.target); // плита дрожит под кубом
             if (token != _runToken) yield break; // победа или Rewind прямо на этом шаге
 
             // Клетки неба: после шага сдуло ветром или перенёс телепорт.
