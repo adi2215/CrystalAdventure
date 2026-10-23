@@ -14,7 +14,7 @@ using UnityEngine.SceneManagement;
 ///    с картами нормалей (верх и левая грань светлые, правая в тени).
 ///  • Пылинки в воздухе.
 ///  • Погода по главе (lookByChapter): Forest — утро; Winter — холодное небо, снегопад и порывы
-///    ветра (снег летит вбок полосками, по экрану проносятся линии ветра, всё слегка белеет);
+///    ветра (снег летит почти горизонтально, по экрану проносятся линии ветра, всё слегка белеет);
 ///    Sky — яркое небо, вдвое больше облаков, облака чаще проплывают перед камерой и под островом.
 ///
 /// Создаётся сам на сцене с картой (MapManager) — в сцену ничего добавлять не нужно.
@@ -319,7 +319,7 @@ public class IslandAtmosphere : MonoBehaviour
 
     /// <summary>
     /// Метель: снежинки (1–3 пикселя) позади и перед островом, линии ветра и белая пелена для порывов.
-    /// Снег летит вниз и вбок; в порыв — почти горизонтально и вытягивается в полоски.
+    /// Снег летит вниз и вбок, снежинки квадратные и полупрозрачные; в порыв — летят почти горизонтально.
     /// </summary>
     void BuildSnow(float viewW, Sprite pixel)
     {
@@ -329,7 +329,8 @@ public class IslandAtmosphere : MonoBehaviour
         {
             bool front = i % 3 == 0; // треть — перед островом, крупнее и быстрее
             var sr = MakeRenderer("Snow", pixel, front ? 600 : -90);
-            var d = AddDrifter(front ? _snowFront : _snowBack, sr, 0f, front ? 0.9f : Rand(0.45f, 0.8f));
+            // Полупрозрачные: снег не должен закрывать поле.
+            var d = AddDrifter(front ? _snowFront : _snowBack, sr, 0f, front ? Rand(0.35f, 0.55f) : Rand(0.3f, 0.6f));
             d.pos = new Vector2(Rand(-0.55f, 0.55f) * viewW, Rand(-0.55f, 0.55f) * _refViewH);
             d.scale = front ? (Rand() < 0.5f ? 2f : 3f) : (Rand() < 0.7f ? 1f : 2f);
             d.speed = (front ? 0.07f : 0.04f) * Rand(0.8f, 1.3f); // ветер вбок
@@ -393,7 +394,7 @@ public class IslandAtmosphere : MonoBehaviour
                 float sway = Mathf.Sin(t * 1.3f + d.phase) * 0.012f * (1f - _gust);
                 d.pos.x -= (d.speed * wind + sway) * dt;
                 d.pos.y -= d.vy * (1f - 0.45f * _gust) * dt;
-                d.stretch = 1f + 2.5f * _gust; // в порыв снежинка — полоска
+                // Снежинка всегда квадратная (без растяжения) — в порыв она просто летит быстрее вбок.
                 if (d.pos.y < -_refViewH * 0.56f) { d.pos.y = _refViewH * 0.56f; d.pos.x = Rand(-0.55f, 0.75f) * viewW; }
                 if (d.pos.x < -viewW * 0.56f) { d.pos.x += viewW * 1.12f; d.pos.y = Rand(-0.55f, 0.55f) * _refViewH; }
             }
