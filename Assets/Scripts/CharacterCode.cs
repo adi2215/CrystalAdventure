@@ -101,6 +101,20 @@ public class CharacterCode : MonoBehaviour
     public bool IsRunning => _run != null;
 
     public OverlayTile StartTile => startTile;
+    /// <summary>Клетка, куда куб сейчас идёт / прыгает / скользит (null — стоит). Нужна грибу (MushroomObj): рисоваться ли поверх куба.</summary>
+    public OverlayTile MoveTarget { get; private set; }
+
+    /// <summary>Самый верхний sortingOrder куба вместе с дочерними спрайтами (Ela на голове и т. п.).</summary>
+    public int TopSortingOrder
+    {
+        get
+        {
+            int top = order != null ? order.sortingOrder : 0;
+            if (_renderers != null)
+                foreach (var r in _renderers) if (r != null && r.enabled && r.sortingOrder > top) top = r.sortingOrder;
+            return top;
+        }
+    }
     public SpriteRenderer MainRenderer => order;
     /// <summary>Спрайт «лицом к камере» (копии куба — враги и боссы — берут его, EnemyLayer).</summary>
     public Sprite FrontSprite => _frontSprite;
@@ -901,6 +915,7 @@ public class CharacterCode : MonoBehaviour
     /// </summary>
     void RaiseOrderFor(OverlayTile target)
     {
+        MoveTarget = target;
         if (!EnemyLayer.Active || order == null || target == null) return;
         int to = SortDepth.Character(target);
         if (to <= order.sortingOrder) return;
@@ -933,6 +948,7 @@ public class CharacterCode : MonoBehaviour
 
         transform.position = TopOf(tile);
         AirHeight = 0f;
+        MoveTarget = null;
         ApplyOrder(tile);
 
         activeTile = tile;

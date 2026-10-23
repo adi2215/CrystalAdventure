@@ -11,7 +11,12 @@ using UnityEngine;
 ///
 /// Спрайт гриба с опорной точкой внизу по центру (mushroom.png, pivot 0.5, 0), поэтому
 /// масштаб и наклон идут «от земли» — гриб не отрывается от клетки.
-/// Пиксельный стиль: высота и ширина меняются только на целые пиксели спрайта.
+/// Покой — плавный (без округления до пикселя: по пикселю «дыхание» шло рывками).
+///
+/// Порядок отрисовки: на обычных уровнях у всех клеток один sortingOrder, а куб всегда «клетка + 2»,
+/// гриб — 1, поэтому куб, стоящий ЗА грибом, рисовался перед ним. Теперь гриб, который стоит ближе
+/// к камере, чем куб (меньше x + y в изометрии — и клетки куба, и клетки, куда он идёт), поднимается
+/// над кубом (TopSortingOrder + 1); иначе — свой порядок из префаба. Остальные объекты не трогаются.
 ///
 /// Исправлено: раньше originalScale никогда не задавался (= 0,0,0) и Squash() сжимал гриб в точку;
 /// сам Squash() при этом нигде не вызывался — гриб стоял неподвижно.
@@ -36,11 +41,14 @@ public class MushroomObj : MonoBehaviour
     [Tooltip("Ширина при сплющивании относительно высоты")] public float squashWiden = 0.8f;
 
     private bool objAttached = false;
+    private OverlayTile _tile;
+    private SpriteRenderer _sr;
+    private int _baseOrder;
+    private static CharacterCode _hero;
     private Vector3 originalScale;
     private float _phase;
     private float _spring;     // > 0 — сплющен, < 0 — вытянут
     private float _springVel;
-    private float _pixelsHigh = 24f, _pixelsWide = 24f;
 
     /// <summary>Насколько шляпка сейчас выше (+) или ниже (−) своего обычного места, в мире.</summary>
     public float CapDelta { get; private set; }
@@ -50,12 +58,8 @@ public class MushroomObj : MonoBehaviour
         originalScale = transform.localScale;
         _phase = Random.value * Mathf.PI * 2f;
         var sr = GetComponent<SpriteRenderer>();
-        if (sr != null && sr.sprite != null)
-        {
-            var rect = sr.sprite.rect;
-            _pixelsHigh = Mathf.Max(1f, rect.height);
-            _pixelsWide = Mathf.Max(1f, rect.width);
-        }
+        _sr = sr;
+        if (sr != null) _baseOrder = sr.sortingOrder;
     }
 
     private void OnTriggerEnter2D(Collider2D other)
@@ -66,6 +70,7 @@ public class MushroomObj : MonoBehaviour
         tile.attachedObject = gameObject;
         tile.block = SuperBlocks.Mushroom;
         objAttached = true;
+        _tile = tile;
     }
 
     public Vector3 GetTopPosition()
@@ -105,14 +110,29 @@ public class MushroomObj : MonoBehaviour
         sy = Mathf.Max(0.4f, sy);
         sx = Mathf.Max(0.4f, sx);
 
-        // Целые пиксели: высота и ширина спрайта — целое число пикселей.
-        sy = Mathf.Round(sy * _pixelsHigh) / _pixelsHigh;
-        sx = Mathf.Round(sx * _pixelsWide) / _pixelsWide;
-
         transform.localScale = new Vector3(originalScale.x * sx, originalScale.y * sy, originalScale.z);
         transform.localRotation = Quaternion.Euler(0f, 0f, sway);
         // Куб стоит на высоте topOffset от низа гриба — она и сжимается вместе со спрайтом.
         CapDelta = (sy - 1f) * topOffset;
+    }
+
+    private void LateUpdate()
+    {
+        if (_sr == null || _tile == null) return;
+        if (_hero == null) _hero = FindObjectOfType<CharacterCode>();
+        if (_hero == null) return;
+
+        int mine = _tile.gridLocation.x + _tile.gridLocation.y;
+        bool inFront = InFrontOf(_hero.activeTile, mine) && InFrontOf(_hero.MoveTarget, mine, ifNone: true);
+        int want = inFront ? Mathf.Max(_baseOrder, _hero.TopSortingOrder + 1) : _baseOrder;
+        if (_sr.sortingOrder != want) _sr.sortingOrder = want;
+    }
+
+    /// <summary>Гриб ближе к камере, чем клетка (меньше x + y). Нет клетки — ifNone.</summary>
+    static bool InFrontOf(OverlayTile tile, int mushroomDepth, bool ifNone = false)
+    {
+        if (tile == null) return ifNone;
+        return mushroomDepth < tile.gridLocation.x + tile.gridLocation.y;
     }
 
     private void OnDisable()
