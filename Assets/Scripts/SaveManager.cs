@@ -129,6 +129,25 @@ public static class SaveManager
         return list != null && levelNumber >= 0 && levelNumber < list.Count && list[levelNumber] != null ? list[levelNumber].name : null;
     }
 
+    /// <summary>
+    /// Номер первого непройденного уровня в текущем порядке (пройден — есть хотя бы одна звезда).
+    /// Все пройдены — последний уровень. Нужен кнопке Play: продолжить, а не начинать с первого.
+    /// Уровень ищется по имени ассета, поэтому порядок уровней можно менять.
+    /// </summary>
+    public static int FirstUnfinished()
+    {
+        var list = LevelChapters.CurrentList;
+        if (list == null || list.Count == 0) return 0;
+        var db = Load();
+        var passed = new HashSet<string>();
+        if (db != null && db.levels != null)
+            foreach (var l in db.levels)
+                if (l != null && l.starsEarned > 0 && !string.IsNullOrEmpty(l.levelName)) passed.Add(l.levelName);
+        for (int i = 0; i < list.Count; i++)
+            if (list[i] != null && !passed.Contains(list[i].name)) return i;
+        return list.Count - 1;
+    }
+
     public static void Save(LevelSaveDatabase db)
     {
         try

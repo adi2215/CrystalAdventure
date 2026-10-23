@@ -528,6 +528,10 @@ public class StoryDirector : MonoBehaviour
         }
         foreach (var b in buttons) Destroy(b);
 
+        // Play (не в первый раз) — продолжить с первого непройденного уровня, если открыт другой.
+        if (choice == "play" && !levelChosen && PlayerPrefs.GetInt(PrologueKey, 0) != 0)
+            levelChosen = ContinueFromSave();
+
         if (levelChosen)
         {
             // Уровень грузится (герой улетает, облака) — меню быстро растворяется, чтобы переход было видно.
@@ -571,6 +575,26 @@ public class StoryDirector : MonoBehaviour
         if (mountain != null) mountain.color = new Color(0.85f, 0.85f, 1f, 1f);
         for (int i = 0; i < 6; i++)
             Art(_stage, StoryArt.Cloud(i), new Vector2(-900f + i * 360f, -380f + (i % 3) * 120f), 5f + i % 2).name = "Cloud";
+    }
+
+    /// <summary>
+    /// Открыть первый непройденный уровень (SaveManager.FirstUnfinished), если сейчас загружен другой.
+    /// true — уровень начал грузиться (меню растворяется, как при выборе на карте).
+    ///
+    /// Исправлено: Play всегда продолжал с уровня, загруженного при запуске (обычно с первого),
+    /// и после перезапуска игры приходилось искать своё место на карте уровней.
+    /// </summary>
+    static bool ContinueFromSave()
+    {
+        var list = LevelChapters.CurrentList;
+        if (list == null || list.Count == 0) return false;
+        int target = SaveManager.FirstUnfinished();
+        int current = TilemapData.CurrentLevel != null ? list.IndexOf(TilemapData.CurrentLevel) : -1;
+        if (target == current || target < 0) return false;
+        var loader = FindObjectOfType<Levelloader>();
+        if (loader == null) return false;
+        loader.OpenLevel(target);
+        return true;
     }
 
     GameObject MenuButton(string label, Vector2 pos, Vector2 size, Color color, float fontSize, System.Action onClick)
