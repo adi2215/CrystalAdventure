@@ -6,7 +6,7 @@ using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
 /// <summary>
-/// Мини-сюжет «Crystal Adventure: The Ascent». Создаётся сам при загрузке игровой сцены
+/// Мини-сюжет «Crystagon: The Ascent» (раньше игра называлась Crystal Adventure). Создаётся сам при загрузке игровой сцены
 /// (как туториал и карта глав), в сцене ничего настраивать не нужно.
 ///
 ///  • Титульный экран — один раз за запуск игры: название, Cris с Ela на голове, кнопки
@@ -477,10 +477,10 @@ public class StoryDirector : MonoBehaviour
         BuildTitleBackdrop();
         var loops = new List<Coroutine> { StartCoroutine(DriftClouds()) };
 
-        var titleShadow = NewText(_stage, "CRYSTAL ADVENTURE", 124f, TextAlignmentOptions.Center);
+        var titleShadow = NewText(_stage, "CRYSTAGON", 124f, TextAlignmentOptions.Center);
         titleShadow.color = new Color(0.16f, 0.08f, 0.22f, 0.85f);
         Place(titleShadow.rectTransform, new Vector2(8f, 322f), new Vector2(1800f, 160f));
-        var title = NewText(_stage, "CRYSTAL ADVENTURE", 124f, TextAlignmentOptions.Center);
+        var title = NewText(_stage, "CRYSTAGON", 124f, TextAlignmentOptions.Center);
         title.color = Color.white;
         Place(title.rectTransform, new Vector2(0f, 330f), new Vector2(1800f, 160f));
         var sub = NewText(_stage, "The Ascent", 76f, TextAlignmentOptions.Center);

@@ -31,17 +31,22 @@ public static class SaveManager
         "LevelSky1", "LevelSky2", "LevelSky3", "LevelBossSky",
     };
 
-    /// <summary>Под этим Product Name игра выходила раньше — оттуда переносим старое сохранение.</summary>
-    private const string LegacyProductName = "BetaCube";
+    /// <summary>
+    /// Под этими Product Name игра выходила раньше — оттуда переносим старое сохранение
+    /// (сначала самое новое имя): Crystal Adventure - The Ascent, до него BetaCube.
+    /// </summary>
+    private static readonly string[] LegacyProductNames = { "Crystal Adventure - The Ascent", "BetaCube" };
     private static bool _migrationChecked;
 
     /// <summary>
-    /// Перенос сохранения после переименования игры (BetaCube → Crystal Adventure - The Ascent).
+    /// Перенос сохранения после переименования игры (BetaCube → Crystal Adventure - The Ascent → Crystagon - The Ascent).
     ///
     /// На Windows/Mac/Linux Application.persistentDataPath = .../{Company Name}/{Product Name},
     /// поэтому смена Product Name в Player Settings «теряла» прогресс уже вышедших игроков:
     /// игра начинала смотреть в новую пустую папку. Если в новой папке сохранения нет,
-    /// а в соседней папке BetaCube оно есть — копируем (старый файл не трогаем, на всякий случай).
+    /// а в соседней папке со старым именем оно есть — копируем (старый файл не трогаем, на всякий случай).
+    /// PlayerPrefs (язык, громкость, «пролог просмотрен») на Windows лежат в реестре под именем продукта
+    /// и не переносятся — это мелочи, игрок просто увидит пролог ещё раз.
     /// На Android/iOS путь зависит от bundle id, а не от Product Name, — там просто ничего не найдётся.
     /// </summary>
     private static void MigrateLegacySave()
@@ -51,17 +56,21 @@ public static class SaveManager
         try
         {
             if (File.Exists(savePath)) return;
-            if (Application.productName == LegacyProductName) return;
 
             var parent = Directory.GetParent(Application.persistentDataPath);
             if (parent == null) return;
 
-            string legacy = Path.Combine(parent.FullName, LegacyProductName, "levels.json");
-            if (!File.Exists(legacy)) return;
+            foreach (var name in LegacyProductNames)
+            {
+                if (Application.productName == name) continue;
+                string legacy = Path.Combine(parent.FullName, name, "levels.json");
+                if (!File.Exists(legacy)) continue;
 
-            Directory.CreateDirectory(Application.persistentDataPath);
-            File.Copy(legacy, savePath);
-            Debug.Log("[SaveManager] Сохранение перенесено из " + legacy);
+                Directory.CreateDirectory(Application.persistentDataPath);
+                File.Copy(legacy, savePath);
+                Debug.Log("[SaveManager] Сохранение перенесено из " + legacy);
+                return;
+            }
         }
         catch (System.Exception e)
         {
