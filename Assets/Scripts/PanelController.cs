@@ -34,6 +34,8 @@ public class PanelController : MonoBehaviour
         // есть панель F2 (третья по счёту). Вкладки Main и F1 не трогаем — они как были.
         if (buttonPanels.Length > 2 && buttonPanels[2] != null)
             buttonPanels[2].SetActive(numberOfPanels > 2);
+
+        FunctionPanelStyle.Apply(this); // F1 / F2 — свой цвет, табличка, вкладка
     }
 
     public void ChoosePanel(GameObject selectedPanel)
