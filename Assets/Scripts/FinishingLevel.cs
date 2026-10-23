@@ -59,6 +59,10 @@ public class FinishingLevel : MonoBehaviour
     public float artPixel = 6f;
     [Tooltip("Старое оформление: золотая лента под кристаллами, гнёзда и лучи. Выключено — оно было не пиксельным")]
     public bool legacyDecor = false;
+    [Tooltip("Поднять кристаллы вместе со строками ещё на столько единиц (сверх panelRaise)")]
+    public float contentRaise = 45f;
+    [Tooltip("Высота строки итогов в пикселях рисунка (значки — 7, остальное — воздух вокруг)")]
+    public int rowPixels = 10;
 
     [Header("Положение")]
     [Tooltip("На сколько пикселей поднять плашку со звёздами (итоги поднимутся вместе с ней)")]
@@ -384,7 +388,7 @@ public class FinishingLevel : MonoBehaviour
         var fontAsset = font != null ? font : FindSceneFont();
         float px = ArtUnit() / ParentScale(root);  // пиксель плашек и значков = пиксель консоли
         float gap = px;
-        float rowH = 8f * px;                      // плашка — 8 пикселей
+        float rowH = Mathf.Max(8, rowPixels) * px; // значки 7 пикселей + воздух сверху и снизу
 
         for (int i = 0; i < rows.Count; i++)
         {
@@ -406,7 +410,7 @@ public class FinishingLevel : MonoBehaviour
             irt.anchorMin = irt.anchorMax = new Vector2(0f, 0.5f);
             irt.pivot = new Vector2(0f, 0.5f);
             irt.sizeDelta = new Vector2(iconSize, iconSize);
-            irt.anchoredPosition = new Vector2(px * 1f, 0f);
+            irt.anchoredPosition = new Vector2(px * 2f, 0f);
 
             // Значок «+» / «−» справа
             var mark = NewImage("Mark", rrt, rows[i].good ? VictorySprites.Plus : VictorySprites.Minus);
@@ -415,14 +419,14 @@ public class FinishingLevel : MonoBehaviour
             mrt.anchorMin = mrt.anchorMax = new Vector2(1f, 0.5f);
             mrt.pivot = new Vector2(0.5f, 0.5f);
             mrt.sizeDelta = new Vector2(markSize, markSize);
-            mrt.anchoredPosition = new Vector2(-px * 1f - markSize * 0.5f, 0f);
+            mrt.anchoredPosition = new Vector2(-px * 2f - markSize * 0.5f, 0f);
             mark.gameObject.SetActive(false);
 
             // Текст между ними
             var label = MakeText(rrt, "Label", fontAsset, TextAlignmentOptions.MidlineLeft);
             _spawned.Add(label.gameObject);
-            label.rectTransform.offsetMin = new Vector2(px * 2f + iconSize, px);
-            label.rectTransform.offsetMax = new Vector2(-(px * 2f + markSize), -px);
+            label.rectTransform.offsetMin = new Vector2(px * 4f + iconSize, px * 2f);
+            label.rectTransform.offsetMax = new Vector2(-(px * 4f + markSize), -px * 2f);
             label.text = rows[i].text;
             label.color = rows[i].good ? Color.white : new Color(1f, 0.86f, 0.86f, 1f);
             label.maxVisibleCharacters = 0;
@@ -471,7 +475,7 @@ public class FinishingLevel : MonoBehaviour
         float pad = 0f;
         float u = ArtUnit();
         float gap = u;
-        float rowH = 8f * u;
+        float rowH = Mathf.Max(8, rowPixels) * u;
         float Need(float h) => rowCount * h + (rowCount - 1) * gap + pad * 2f;
         float margin = resultGap;
         float space = panelBottom - floor - margin * 2f;
@@ -519,7 +523,7 @@ public class FinishingLevel : MonoBehaviour
         var starPanel = stars[0].rectTransform.parent as RectTransform;
         if (starPanel == null) return;
         if (_starPanel != starPanel) { _starPanel = starPanel; _starPanelBase = starPanel.anchoredPosition; }
-        starPanel.anchoredPosition = _starPanelBase + new Vector2(0f, panelRaise);
+        starPanel.anchoredPosition = _starPanelBase + new Vector2(0f, panelRaise + contentRaise);
     }
 
     static float BottomIn(RectTransform space, RectTransform child)
