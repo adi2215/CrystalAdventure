@@ -29,7 +29,16 @@ public class CommandDock : MonoBehaviour
     /// (рамка консоли — 5 пикселей рисунка ≈ 43 единицы по бокам и 50 сверху; ряд слотов начинается на 17 ниже ряда).
     /// Снизу больше: ряд слотов под доком уменьшается до размера кнопок (ShrinkSlots) и опускается.
     /// </summary>
-    public static Vector4 Grow = new Vector4(10f, 10f, 26f, 14f);
+    public static Vector4 Grow = new Vector4(13f, 13f, 23f, 14f);
+
+    /// <summary>Уменьшать ряд слотов до пикселя кнопок дока (пробовали — автору слоты показались мелкими).</summary>
+    public static bool SlotsMatchDock = false;
+
+    /// <summary>
+    /// На сколько опустить ряд слотов (единицы канваса), чтобы подложке дока хватило места снизу.
+    /// Между слотами и кнопкой ▶ было ≈27 — после сдвига ≈19, между подложкой и слотами ≈12.
+    /// </summary>
+    public static float SlotsDrop = 8f;
 
     const float ArtPixel = 6f;     // пиксель гнёзд — как у рамки консоли
     const float ButtonArt = 13f;   // кнопки команд нарисованы 13×13 пикселей
@@ -167,9 +176,9 @@ public class CommandDock : MonoBehaviour
         float u = Mathf.Max(1f, Mathf.Round(ArtPixel * px)) / px;
         float gap = u;
         float spacer = u * 3f;   // между компасом и правым блоком: разделитель шириной u и по u воздуха
-        float pad = u;           // поле подложки вокруг кнопок сверху и по бокам
-        float padBottom = u * 2f; // снизу шире — у кнопок тень снизу, иначе ряд упирается в край подложки
-        float cell = Mathf.Min((rect.height - gap - pad - padBottom) / 2f,
+        float pad = u * 1.5f;     // поле подложки вокруг кнопок сверху и по бокам
+        float padBottom = u * 2.5f; // снизу шире — у кнопок тень снизу, иначе ряд упирается в край подложки
+        float cell = Mathf.Min((rect.height - gap - pad - padBottom) / 2f,  // по ширине — поля с двух сторон
                                (rect.width - spacer - gap * rightCols - pad * 2f) / (2 + rightCols));
         // Кнопка — целое число пикселей экрана на пиксель рисунка 13×13.
         int k = Mathf.Max(1, Mathf.FloorToInt(cell * px / ButtonArt));
@@ -194,7 +203,7 @@ public class CommandDock : MonoBehaviour
         Place(divider.rectTransform, new Vector2(dividerX, blockCenterY), new Vector2(u, blockH));
         divider.pixelsPerUnitMultiplier = 1f / u;
 
-        ShrinkSlots(k, sf);
+        AdjustSlots(k, sf);
 
         int socket = 0;
         for (int i = 0; i < Compass.Length; i++)
@@ -222,16 +231,18 @@ public class CommandDock : MonoBehaviour
 
     GridLayoutGroup _slots;
     Vector3 _slotsBaseScale;
+    Vector2 _slotsBasePos;
     float _slotsFactor = 1f;
 
     /// <summary>
-    /// Ряд слотов программы под доком (GridLayoutGroup «Buttonsbar» той же панели) — уменьшить до размера
+    /// Ряд слотов программы под доком (GridLayoutGroup «Buttonsbar» той же панели): опустить на SlotsDrop,
+    /// чтобы подложке дока хватило места, и (если включено SlotsMatchDock) уменьшить до размера
     /// кнопок дока: тот же пиксель рисунка (13×13), всё влезает и смотрится одним набором (просьба автора).
     /// Уменьшается масштабом всего ряда — вместе со слотами уменьшаются и карточки в них. Коэффициент —
     /// отношение целых «пикселей экрана на пиксель рисунка» (например 10/11 на 1080p), поэтому пиксели
     /// остаются ровными, а PixelSnapUI при пересчёте получит то же самое. Только уменьшение, никогда не больше.
     /// </summary>
-    void ShrinkSlots(int k, float sf)
+    void AdjustSlots(int k, float sf)
     {
         if (_slots == null)
         {
@@ -243,7 +254,11 @@ public class CommandDock : MonoBehaviour
             }
             if (_slots == null) return;
             _slotsBaseScale = _slots.transform.localScale;
+            var srt = (RectTransform)_slots.transform;
+            _slotsBasePos = srt.anchoredPosition;
+            srt.anchoredPosition = _slotsBasePos - new Vector2(0f, SlotsDrop);
         }
+        if (!SlotsMatchDock) return;
         var canvas = GetComponentInParent<Canvas>();
         float root = canvas != null ? canvas.rootCanvas.transform.lossyScale.x : 1f;
         if (Mathf.Abs(root) < 0.000001f || _slotsFactor <= 0f) return;
