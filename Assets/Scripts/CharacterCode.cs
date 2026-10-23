@@ -73,6 +73,7 @@ public class CharacterCode : MonoBehaviour
     public float jumpTime = 0.5f;
     public float jumpHeight = 0.3f;
     public float waitOnMushroom = 0.3f;
+    [Tooltip("Подскок куба на шляпке гриба после приземления")] public float mushroomHop = 0.1f;
 
     private Coroutine _run;
     private Coroutine _celebrate;
@@ -362,12 +363,12 @@ public class CharacterCode : MonoBehaviour
                 if (token != _runToken) yield break;
                 if (SpecialTiles.IsCrumbling(leftTile)) SpecialTiles.Crumble(leftTile);
                 yield return SlideToTile(step.target);
-                if (step.onMushroom) yield return new WaitForSeconds(waitOnMushroom);
+                if (step.onMushroom) yield return BounceOnMushroom(step.target);
             }
             else if (step.fromMushroom || step.onMushroom)
             {
                 yield return JumpToTile(step.target);
-                if (step.onMushroom) yield return new WaitForSeconds(waitOnMushroom);
+                if (step.onMushroom) yield return BounceOnMushroom(step.target);
             }
             else
             {
@@ -799,6 +800,8 @@ public class CharacterCode : MonoBehaviour
         PixelSfx.Play(Sfx.Jump, 0.8f);
         Vector3 startPos = transform.localPosition;
         Vector3 endPos = ToLocal(TopOf(targetTile));
+        var launchPad = MushroomOf(_tile);
+        if (launchPad != null) launchPad.Bounce(0.6f); // оттолкнулся от шляпки — гриб пружинит
         Squash(-0.18f);
         yield return new WaitForSeconds(0.05f);
         Squash(0.3f);
@@ -816,6 +819,51 @@ public class CharacterCode : MonoBehaviour
         PixelSfx.Play(Sfx.Land, 0.6f, 1.1f);
 
         PositionCharacterOnLine(targetTile, collect: true);
+    }
+
+    static MushroomObj MushroomOf(OverlayTile tile)
+    {
+        if (tile == null || tile.attachedObject == null) return null;
+        return tile.attachedObject.TryGetComponent<MushroomObj>(out var m) ? m : null;
+    }
+
+    /// <summary>
+    /// Приземлился на гриб: шляпка сплющивается, куб проседает вместе с ней, потом гриб
+    /// «выстреливает» — куб подскакивает на месте и снова мягко встаёт на шляпку.
+    /// Заменяет прежнюю паузу waitOnMushroom (длится не меньше неё).
+    /// </summary>
+    IEnumerator BounceOnMushroom(OverlayTile tile)
+    {
+        float total = Mathf.Max(0.36f, waitOnMushroom);
+        var mushroom = MushroomOf(tile);
+        if (mushroom == null) { yield return new WaitForSeconds(total); yield break; }
+
+        Vector3 basePos = transform.localPosition;
+        mushroom.Bounce(1f);
+
+        // 1) Проседает вместе со шляпкой.
+        float sink = total * 0.3f;
+        for (float t = 0f; t < sink; t += Time.deltaTime)
+        {
+            transform.localPosition = basePos + Vector3.up * mushroom.CapDelta;
+            yield return null;
+        }
+
+        // 2) Шляпка распрямляется — подбрасывает куб.
+        Squash(0.25f);
+        PixelSfx.Play(Sfx.Jump, 0.45f, 1.35f);
+        float hop = total - sink;
+        for (float t = 0f; t < 1f; t += Time.deltaTime / hop)
+        {
+            float h = 4f * mushroomHop * t * (1f - t);
+            transform.localPosition = basePos + Vector3.up * (h + mushroom.CapDelta * (1f - t));
+            AirHeight = h;
+            yield return null;
+        }
+        transform.localPosition = basePos;
+        AirHeight = 0f;
+        Squash(-0.18f);
+        mushroom.Bounce(0.35f);
     }
 
     int[] _baseOrders;
